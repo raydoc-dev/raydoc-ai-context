@@ -91,3 +91,35 @@ export async function findFunctionDefinition(
     }
     return undefined;
 }
+
+export function extractParameterPositions(
+    doc: vscode.TextDocument,
+    functionDefintion: FunctionDefinition,
+): vscode.Position[] {
+    const startOffset = functionDefintion.functionText.indexOf('(');
+    const endOffset = functionDefintion.functionText.indexOf(')');
+
+    if (startOffset === -1 || endOffset === -1 || startOffset > endOffset) {
+        console.log("No valid parameter list found.");
+        return [];
+    }
+
+    // Extract parameter list text
+    const paramListText = functionDefintion.functionText.substring(startOffset + 1, endOffset);
+
+    // Split parameters and track positions
+    let currentOffset = startOffset + 1; // Offset relative to functionText
+    const paramPositions: vscode.Position[] = [];
+
+    paramListText.split(',').map(param => param.trim()).forEach(param => {
+        if (param.length === 0) { return; }
+
+        const paramOffset = functionDefintion.functionText.indexOf(param, currentOffset);
+        const absoluteOffset = doc.offsetAt(functionDefintion.functionSymbol.range.start) + paramOffset;
+        paramPositions.push(doc.positionAt(absoluteOffset));
+
+        currentOffset = paramOffset + param.length;
+    });
+
+    return paramPositions;
+}

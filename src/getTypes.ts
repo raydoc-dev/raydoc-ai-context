@@ -36,6 +36,10 @@ export async function getTypeInfo(
     );
 
     for (const defType of defTypes || []) {
+        if (!defType.uri) {
+            continue;
+        }
+        
         if (isStandardLibLocation(defType.uri.fsPath)) {
             continue;
         }

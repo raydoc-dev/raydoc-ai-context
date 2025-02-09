@@ -143,7 +143,7 @@ function getLanguageVersion(languageId: string): string | undefined {
         default:
             return undefined;
     }
-    if (!cmd) return undefined;
+    if (!cmd) { return undefined; }
 
     try {
         const output = cp.execSync(cmd, { encoding: 'utf-8' }).trim();

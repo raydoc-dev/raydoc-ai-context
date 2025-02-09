@@ -1,9 +1,8 @@
 import * as vscode from 'vscode';
 import { gatherErrorContext } from './gatherError';
 import { contextToString } from './toString';
-import { getEnclosingFunction } from './functions';
+import { getEnclosingFunction, extractParameterPositions } from './functions';
 import { getTypeInfo } from './getTypes';
-import { FunctionDefinition } from './types';
 
 export function activate(context: vscode.ExtensionContext) {
     const config = vscode.workspace.getConfiguration('raydoc-context');
@@ -131,51 +130,89 @@ async function copyLineContextAtCursorCommandHandler() {
         return;
     }
 
-    console.log('Function definition:', functionDefinition);
-
     // Get function signature help
     // await getFunctionSignatureHelp(doc, functionDefinition.functionSymbol);
 
-    const paramPositions = await extractParameterPositionsFromText(doc, functionDefinition);
+    const types: string[] = [];
 
-    console.log('Parameter positions:', paramPositions);
+    const paramPositions = await extractParameterPositions(doc, functionDefinition);
 
     for (const paramPosition of paramPositions) {
         const typeInfo = await getTypeInfo(doc, paramPosition);
-        console.log('Type Info:', typeInfo);
+        if (typeInfo) {
+            for (const type of typeInfo) {
+                types.push(type);
+            }
+        }
     }
+
+    // Get variable types
+    const variableTypes = await analyzeFunctionVariables(doc, functionDefinition.functionSymbol);
+
+    for (const [variableName, typeInfo] of variableTypes) {
+        if (typeInfo.length > 0) {
+            for (const type of typeInfo) {
+                types.push(type);
+            }
+        }
+    }
+
+    // Remove duplicates from types
+    const uniqueTypes = [...new Set(types)];
+
+    console.log('Types:', uniqueTypes);
 }
 
-function extractParameterPositionsFromText(
-    doc: vscode.TextDocument,
-    functionDefintion: FunctionDefinition,
-): vscode.Position[] {
-    const startOffset = functionDefintion.functionText.indexOf('(');
-    const endOffset = functionDefintion.functionText.indexOf(')');
+async function analyzeFunctionVariables(
+    document: vscode.TextDocument,
+    functionSymbol: vscode.DocumentSymbol
+): Promise<Map<string, string[]>> {
+    const variableTypes = new Map<string, string[]>(); // Store variable names and types
 
-    if (startOffset === -1 || endOffset === -1 || startOffset > endOffset) {
-        console.log("No valid parameter list found.");
-        return [];
+    // Recursively find variable symbols in the function
+    function findVariableSymbols(symbol: vscode.DocumentSymbol) {
+        if (symbol.kind === vscode.SymbolKind.Variable) {
+            const variableName = symbol.name;
+            variableTypes.set(variableName, []);
+        }
+
+        for (const child of symbol.children) {
+            findVariableSymbols(child);
+        }
     }
 
-    // Extract parameter list text
-    const paramListText = functionDefintion.functionText.substring(startOffset + 1, endOffset);
+    findVariableSymbols(functionSymbol);
 
-    // Split parameters and track positions
-    let currentOffset = startOffset + 1; // Offset relative to functionText
-    const paramPositions: vscode.Position[] = [];
+    // Process each variable: get its type info
+    for (const [variableName, _] of variableTypes) {
+        const position = findVariablePosition(document, functionSymbol, variableName);
+        if (position) {
+            const typeInfo = await getTypeInfo(document, position);
+            if (typeInfo) {
+                variableTypes.set(variableName, typeInfo);
+            }
+        }
+    }
 
-    paramListText.split(',').map(param => param.trim()).forEach(param => {
-        if (param.length === 0) return;
+    return variableTypes;
+}
 
-        const paramOffset = functionDefintion.functionText.indexOf(param, currentOffset);
-        const absoluteOffset = doc.offsetAt(functionDefintion.functionSymbol.range.start) + paramOffset;
-        paramPositions.push(doc.positionAt(absoluteOffset));
+// Find the position of a variable inside a function
+function findVariablePosition(
+    document: vscode.TextDocument,
+    functionSymbol: vscode.DocumentSymbol,
+    variableName: string
+): vscode.Position | undefined {
+    const text = document.getText(functionSymbol.range);
+    const lines = text.split("\n");
 
-        currentOffset = paramOffset + param.length;
-    });
+    for (let i = 0; i < lines.length; i++) {
+        if (lines[i].includes(variableName)) {
+            return new vscode.Position(functionSymbol.range.start.line + i, lines[i].indexOf(variableName));
+        }
+    }
 
-    return paramPositions;
+    return undefined;
 }
 
 /**

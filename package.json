@@ -35,7 +35,7 @@
             {
                 "command": "raydoc-context.copyLineContextAtCursor",
                 "key": "ctrl+alt+l",
-                "mac": "cmd+option+l",
+                "mac": "cmd+alt+l",
                 "when": "editorTextFocus"
             }
         ],
