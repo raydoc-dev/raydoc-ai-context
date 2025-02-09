@@ -1,5 +1,97 @@
 import * as vscode from 'vscode';
 
+export async function analyzeFunctionVariables(
+    document: vscode.TextDocument,
+    functionSymbol: vscode.DocumentSymbol
+): Promise<Map<string, string[]>> {
+    const variableTypes = new Map<string, string[]>();
+    let text = document.getText(functionSymbol.range);
+
+    // Common keywords across languages
+    const commonKeywords = new Set([
+        'function', 'func',
+        functionSymbol.name
+    ]);
+
+    // Use regex to extract potential variable names
+    const identifierRegex = /[a-zA-Z_$][a-zA-Z0-9_$]*/g;
+    const words = Array.from(new Set(text.match(identifierRegex) || []))
+        .filter(word => {
+            // Filter out common keywords
+            if (commonKeywords.has(word)) { return false; }
+
+            // Filter out likely method calls (followed by parentheses)
+            if (text.match(new RegExp(`${word}\\s*\\(`))) { return false; }
+
+            return true;
+        });
+
+    // Create a Set to track processed words to avoid duplicates
+    const processedWords = new Set<string>();
+
+    // Process each potential variable
+    for (const word of words) {
+        if (processedWords.has(word)) {
+            continue;
+        }
+        processedWords.add(word);
+
+        const positions = findAllWordPositions(document, functionSymbol, word);
+        
+        // Try each position until we find valid type information
+        for (const position of positions) {
+            try {
+                const typeInfo = await getTypeInfo(document, position);
+                if (typeInfo && typeInfo.length > 0) {
+                    variableTypes.set(word, typeInfo);
+                    break;  // Found valid type info, no need to check other positions
+                }
+            } catch (error) {
+                console.log(`Error getting type info for ${word} at position ${position.line}:${position.character}: ${error}`);
+                continue;
+            }
+        }
+    }
+
+    return variableTypes;
+}
+
+function findAllWordPositions(
+    document: vscode.TextDocument,
+    functionSymbol: vscode.DocumentSymbol,
+    word: string
+): vscode.Position[] {
+    const positions: vscode.Position[] = [];
+    const text = document.getText(functionSymbol.range);
+    const lines = text.split('\n');
+    
+    for (let i = 0; i < lines.length; i++) {
+        let startIndex = 0;
+        while (true) {
+            const index = lines[i].indexOf(word, startIndex);
+            if (index === -1) { break; }
+            
+            // Check if the word is a complete token (not part of a larger word)
+            const beforeChar = index > 0 ? lines[i][index - 1] : ' ';
+            const afterChar = index + word.length < lines[i].length 
+                ? lines[i][index + word.length] 
+                : ' ';
+                
+            if (!/[a-zA-Z0-9_$]/.test(beforeChar) && !/[a-zA-Z0-9_$]/.test(afterChar)) {
+                // Create position relative to the document
+                positions.push(new vscode.Position(
+                    functionSymbol.range.start.line + i,
+                    index
+                ));
+            }
+            
+            startIndex = index + word.length;
+        }
+    }
+    
+    return positions;
+}
+
 export async function getTypeInfo(
     document: vscode.TextDocument,
     position: vscode.Position
