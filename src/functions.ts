@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { findEnclosingSymbol, symbolContainingRange } from './symbols';
+import { findEnclosingFunctionSymbol, symbolContainingRange } from './symbols';
 import { FunctionDefinition } from './types';
 
 /**
@@ -8,7 +8,7 @@ import { FunctionDefinition } from './types';
 export async function getEnclosingFunction(
     doc: vscode.TextDocument,
     position: vscode.Position
-): Promise<{ functionDefn: FunctionDefinition; range: vscode.Range } | undefined> {
+): Promise<FunctionDefinition | undefined> {
     const symbols = (await vscode.commands.executeCommand(
         'vscode.executeDocumentSymbolProvider',
         doc.uri
@@ -18,19 +18,19 @@ export async function getEnclosingFunction(
         return undefined;
     }
 
-    const enclosingSymbol = findEnclosingSymbol(symbols, position);
+    const enclosingSymbol = findEnclosingFunctionSymbol(symbols, position);
     if (!enclosingSymbol) {
         return undefined;
     }
 
     const text = doc.getText(enclosingSymbol.range);
     return {
-        functionDefn: {
-            filename: doc.fileName,
-            functionText: text,
-        }, range: enclosingSymbol.range
+        filename: doc.fileName,
+        functionText: text,
+        functionSymbol: enclosingSymbol,
     };
 }
+
 
 /**
  * Naive approach to find function calls in text by regex (e.g., "myFunc(", "someFunction(").
@@ -89,4 +89,36 @@ export async function findFunctionDefinition(
         }
     }
     return undefined;
+}
+
+export function extractParameterPositions(
+    doc: vscode.TextDocument,
+    functionDefintion: FunctionDefinition,
+): vscode.Position[] {
+    const startOffset = functionDefintion.functionText.indexOf('(');
+    const endOffset = functionDefintion.functionText.indexOf(')');
+
+    if (startOffset === -1 || endOffset === -1 || startOffset > endOffset) {
+        console.log("No valid parameter list found.");
+        return [];
+    }
+
+    // Extract parameter list text
+    const paramListText = functionDefintion.functionText.substring(startOffset + 1, endOffset);
+
+    // Split parameters and track positions
+    let currentOffset = startOffset + 1; // Offset relative to functionText
+    const paramPositions: vscode.Position[] = [];
+
+    paramListText.split(',').map(param => param.trim()).forEach(param => {
+        if (param.length === 0) { return; }
+
+        const paramOffset = functionDefintion.functionText.indexOf(param, currentOffset);
+        const absoluteOffset = doc.offsetAt(functionDefintion.functionSymbol.range.start) + paramOffset;
+        paramPositions.push(doc.positionAt(absoluteOffset));
+
+        currentOffset = paramOffset + param.length;
+    });
+
+    return paramPositions;
 }

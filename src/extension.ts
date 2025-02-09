@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { gatherErrorContext } from './gatherError';
 import { contextToString } from './toString';
+import { getEnclosingFunction, extractParameterPositions } from './functions';
+import { getTypeInfo, analyzeFunctionVariables } from './getTypes';
 
 export function activate(context: vscode.ExtensionContext) {
     const config = vscode.workspace.getConfiguration('raydoc-context');
@@ -17,70 +19,148 @@ export function activate(context: vscode.ExtensionContext) {
         { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
     );
 
-    // 2) Register the "copy context" command invoked by the Code Action
-    const copyContextCommand = vscode.commands.registerCommand(
-        'raydoc-context.copyContext',
-        async (uri: vscode.Uri, diagnostic: vscode.Diagnostic) => {
-            // Gather all context data (environment, function text, file tree, etc.)
-            const context = await gatherErrorContext(uri, diagnostic);
-            if (!context) {
-                vscode.window.showWarningMessage('No context available to copy.');
-                return;
-            }
-            const output = contextToString(context);
-            if (output) {
-                await vscode.env.clipboard.writeText(output);
-                vscode.window.showInformationMessage('Raydoc: Context copied to clipboard!');
-            } else {
-                vscode.window.showWarningMessage('No context available to copy.');
-            }
-        }
+    // 2) Register the "copy error context" command invoked by the Code Action
+    const copyErrorContextCommand = vscode.commands.registerCommand(
+        'raydoc-context.copyErrorContext',
+        async (uri: vscode.Uri, diagnostic: vscode.Diagnostic) => { copyErrorContextCommandHandler(uri, diagnostic); }
     );
 
-    const copyContextAtCursorCommand = vscode.commands.registerCommand(
-        'raydoc-context.copyContextAtCursor',
-        async () => {
-            // Attempt to detect an error at the current cursor position
-            const editor = vscode.window.activeTextEditor;
-            if (!editor) {
-                vscode.window.showWarningMessage('No active text editor.');
-                return;
-            }
-
-            const position = editor.selection.active; // Cursor position
-            const docUri = editor.document.uri;
-
-            // Get all diagnostics for this file
-            const diagnostics = vscode.languages.getDiagnostics(docUri);
-
-            // Find a diagnostic that covers the cursor position
-            const diag = diagnostics.find(d => d.range.contains(position));
-            if (!diag) {
-                vscode.window.showWarningMessage('No error at the current cursor position.');
-                return;
-            }
-
-            // We found an error at the cursor position; gather context
-            const context = await gatherErrorContext(docUri, diag);
-            if (!context) {
-                vscode.window.showWarningMessage('No context available to copy.');
-                return;
-            }
-            const output = contextToString(context);
-            if (output) {
-                await vscode.env.clipboard.writeText(output);
-                vscode.window.showInformationMessage('Raydoc: context copied to clipboard!');
-            } else {
-                vscode.window.showWarningMessage('No context available to copy.');
-            }
-        }
+    const copyErrorContextAtCursorCommand = vscode.commands.registerCommand(
+        'raydoc-context.copyErrorContextAtCursor',
+        async () => { copyErrorContextAtCursorCommandHandler(); }
     );
 
-    context.subscriptions.push(providerDisposable, copyContextCommand, copyContextAtCursorCommand);
+    const copyLineContextAtCursorCommand = vscode.commands.registerCommand(
+        'raydoc-context.copyLineContextAtCursor',
+        async () => { copyLineContextAtCursorCommandHandler(); }
+    );
+
+    context.subscriptions.push(
+        providerDisposable,
+        copyErrorContextCommand,
+        copyErrorContextAtCursorCommand,
+        copyLineContextAtCursorCommand,
+    );
 }
 
 export function deactivate() {
     // Cleanup if needed
+}
+
+/**
+ * Command handler for "Copy context" command.
+ */
+async function copyErrorContextCommandHandler(uri: vscode.Uri, diagnostic: vscode.Diagnostic) {
+    // Gather all context data (environment, function text, file tree, etc.)
+    const context = await gatherErrorContext(uri, diagnostic);
+    if (!context) {
+        vscode.window.showWarningMessage('No context available to copy.');
+        return;
+    }
+    const output = contextToString(context);
+    if (output) {
+        await vscode.env.clipboard.writeText(output);
+        vscode.window.showInformationMessage('Raydoc: Context copied to clipboard!');
+    } else {
+        vscode.window.showWarningMessage('No context available to copy.');
+    }
+}
+
+/**
+ * Command handler for "Copy context at cursor" command.
+ */
+async function copyErrorContextAtCursorCommandHandler() {
+    // Attempt to detect an error at the current cursor position
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+        vscode.window.showWarningMessage('No active text editor.');
+        return;
+    }
+
+    const position = editor.selection.active; // Cursor position
+    const docUri = editor.document.uri;
+
+    // Get all diagnostics for this file
+    const diagnostics = vscode.languages.getDiagnostics(docUri);
+
+    // Find a diagnostic that covers the cursor position
+    const diag = diagnostics.find(d => d.range.contains(position));
+    if (!diag) {
+        vscode.window.showWarningMessage('No error at the current cursor position.');
+        return;
+    }
+
+    // We found an error at the cursor position; gather context
+    const context = await gatherErrorContext(docUri, diag);
+    if (!context) {
+        vscode.window.showWarningMessage('No context available to copy.');
+        return;
+    }
+    const output = contextToString(context);
+    if (output) {
+        await vscode.env.clipboard.writeText(output);
+        vscode.window.showInformationMessage('Raydoc: context copied to clipboard!');
+    } else {
+        vscode.window.showWarningMessage('No context available to copy.');
+    }
+}
+
+/**
+ * Command handler for "Copy line context" command.
+ */
+async function copyLineContextAtCursorCommandHandler() {
+    console.log('Copy line context at cursor');
+
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+        vscode.window.showErrorMessage('No active editor found!');
+        return;
+    }
+
+    // The position (line, character) where the user's cursor is
+    const position = editor.selection.active;
+
+    // The URI (file path) of the currently open document
+    const doc = editor.document;
+
+    const functionDefinition = await getEnclosingFunction(doc, position);
+
+    if (!functionDefinition) {
+        vscode.window.showErrorMessage('No function found at the current cursor position.');
+        return;
+    }
+
+    // Get function signature help
+    // await getFunctionSignatureHelp(doc, functionDefinition.functionSymbol);
+
+    const types: string[] = [];
+
+    const paramPositions = await extractParameterPositions(doc, functionDefinition);
+
+    for (const paramPosition of paramPositions) {
+        const typeInfo = await getTypeInfo(doc, paramPosition);
+        if (typeInfo) {
+            for (const type of typeInfo) {
+                types.push(type);
+            }
+        }
+    }
+
+    // Get variable types
+    const variableTypes = await analyzeFunctionVariables(doc, functionDefinition.functionSymbol);
+
+    for (const [variableName, typeInfo] of variableTypes) {
+        if (typeInfo.length > 0) {
+            for (const type of typeInfo) {
+                types.push(type);
+            }
+        }
+    }
+
+    // Remove duplicates from types
+    const uniqueTypes = [...new Set(types)];
+
+    console.log('Types:', uniqueTypes);
 }
 
 /**
@@ -97,11 +177,11 @@ class ErrorContextCodeActionProvider implements vscode.CodeActionProvider {
         for (const diag of context.diagnostics) {
             if (diag.severity === vscode.DiagnosticSeverity.Error) {
                 // Create a CodeAction for "Copy context"
-                const action = new vscode.CodeAction('Copy context', vscode.CodeActionKind.QuickFix);
+                const action = new vscode.CodeAction('Copy error context', vscode.CodeActionKind.QuickFix);
                 // This quick fix invokes our command with the document URI and this diagnostic
                 action.command = {
-                    command: 'raydoc-context.copyContext',
-                    title: 'Copy context',
+                    command: 'raydoc-context.copyErrorContext',
+                    title: 'Copy error context',
                     arguments: [document.uri, diag],
                 };
                 // Associate it with the diagnostic so it shows on the lightbulb for this error

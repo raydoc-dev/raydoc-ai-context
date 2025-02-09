@@ -17,15 +17,25 @@
     "contributes": {
         "commands": [
             {
-                "command": "raydoc-context.copyContextAtCursor",
-                "title": "Copy Context at Cursor"
+                "command": "raydoc-context.copyErrorContextAtCursor",
+                "title": "Copy Error Context at Cursor"
+            },
+            {
+                "command": "raydoc-context.copyLineContextAtCursor",
+                "title": "Copy Line Context at Cursor"
             }
         ],
         "keybindings": [
             {
-                "command": "raydoc-context.copyContextAtCursor",
+                "command": "raydoc-context.copyErrorContextAtCursor",
                 "key": "ctrl+shift+c",
                 "mac": "cmd+shift+c",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "raydoc-context.copyLineContextAtCursor",
+                "key": "ctrl+alt+l",
+                "mac": "cmd+alt+l",
                 "when": "editorTextFocus"
             }
         ],

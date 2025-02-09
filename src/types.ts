@@ -1,3 +1,5 @@
+import { DocumentSymbol } from "vscode";
+
 export type RaydocContext = {
     filepath: string;
     line: number;
@@ -16,6 +18,7 @@ export type RaydocContext = {
 export type FunctionDefinition = {
     filename: string;
     functionText: string;
+    functionSymbol: DocumentSymbol;
 }
 
 export type TypeDefinition = {
