@@ -33,14 +33,9 @@
             "type": "object",
             "title": "Raydoc Settings",
             "properties": {
-                "raydoc-context.enable": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Enable Raydoc Context"
-                },
                 "raydoc-context.includeComments": {
                     "type": "boolean",
-                    "default": true,
+                    "default": false,
                     "description": "Include comments in the copied context"
                 },
                 "raydoc-context.depth": {

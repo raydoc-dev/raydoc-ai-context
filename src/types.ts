@@ -6,10 +6,10 @@ export type RaydocContext = {
     runtime?: string;
     runtimeVersion?: string;
     runtimePath?: string;
-    packages?: { [key: string]: string }[];
-    functionDefns?: FunctionDefinition[];
+    packages?: Record<string, string>;
+    functionDefn?: FunctionDefinition;
     typeDefns?: TypeDefinition[];
-    fileTree: RootNode;
+    fileTree?: Node;
 }
 
 export type FunctionDefinition = {
@@ -23,12 +23,9 @@ export type TypeDefinition = {
     typeText: string;
 }
 
-export type RootNode = {
-    name: string;
-    children?: Node[];
-}
-
 export type Node = {
     name: string;
+    isDir: boolean;
+    fsPath: string;
     children?: Node[];
 }
