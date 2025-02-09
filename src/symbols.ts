@@ -2,22 +2,29 @@ import * as vscode from 'vscode';
 import { TypeDefinition } from './types';
 
 /**
- * Finds the document symbol (function, method, etc.) that encloses `position`.
- * If children are more specific, we descend into them.
+ * Finds the document symbol (function or method) that encloses `position`.
+ * This version returns the outermost matching symbol without descending further.
  */
-export function findEnclosingSymbol(
+export function findEnclosingFunctionSymbol(
     symbols: vscode.DocumentSymbol[],
     position: vscode.Position
 ): vscode.DocumentSymbol | undefined {
-    for (const s of symbols) {
-        if (s.range.contains(position)) {
-            // See if any child is narrower
-            const child = findEnclosingSymbol(s.children, position);
-            return child || s;
+    for (const symbol of symbols) {
+        if (symbol.range.contains(position)) {
+            // Check if this symbol is a function or a method.
+            if (symbol.kind === vscode.SymbolKind.Function || symbol.kind === vscode.SymbolKind.Method) {
+                return symbol;
+            }
+            // Otherwise, check its children in case they contain a function or method.
+            const childSymbol = findEnclosingFunctionSymbol(symbol.children, position);
+            if (childSymbol) {
+                return childSymbol;
+            }
         }
     }
     return undefined;
 }
+
 
 /**
  * A naive approach to detect potential "custom types" by looking for

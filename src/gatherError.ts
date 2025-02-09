@@ -35,7 +35,11 @@ export async function gatherErrorContext(
 
     const relPath = path.relative(projectRoot, uri.fsPath);
 
-    const functionData = await getEnclosingFunction(doc, diag.range.start);
+    const functionDefinition = await getEnclosingFunction(doc, diag.range.start);
+
+    if (!functionDefinition) {
+        return undefined;
+    }
 
     const context: RaydocContext = {
         filepath: relPath,
@@ -46,48 +50,45 @@ export async function gatherErrorContext(
         runtimeVersion: getLanguageVersion(doc.languageId),
         runtimePath: '',
         packages: getPackageDependencies(),
-        functionDefn: functionData?.functionDefn,
+        functionDefn: functionDefinition,
         typeDefns: [],
         fileTree: undefined,
     };
 
-    if (functionData) {
-        const calledFunctionNames = findFunctionCalls(functionData.functionDefn.functionText);
-        for (const fnName of calledFunctionNames) {
-            const fnDef = await findFunctionDefinition(doc, functionData.range.start, fnName);
-            if (fnDef) {
-                usedFiles.add(fnDef.uri.fsPath);
-            }
+    const calledFunctionNames = findFunctionCalls(functionDefinition.functionText);
+    for (const fnName of calledFunctionNames) {
+        const fnDef = await findFunctionDefinition(doc, functionDefinition.functionSymbol.range.start, fnName);
+        if (fnDef) {
+            usedFiles.add(fnDef.uri.fsPath);
         }
-
-        // 3) Find custom types used in this function (depth = 2)
-        const immediateTypes = findCustomTypes(functionData.functionDefn.functionText);
-
-        // We'll store all discovered type definitions in a list
-        const discoveredTypeDefs: TypeDefinition[] = [];
-
-        // Use a visited set for type names, so we don't loop infinitely
-        const visitedTypeNames = new Set<string>();
-
-        for (const typeName of immediateTypes) {
-            // gatherTypeDefinitionRecursive fetches this type + its sub-types up to depth=2
-            const typeResults = await gatherTypeDefinitionRecursive(
-                doc,
-                functionData.range.start,
-                typeName,
-                depth,
-                visitedTypeNames,
-                includeComments
-            );
-            for (const tDef of typeResults) {
-                discoveredTypeDefs.push(tDef);
-                usedFiles.add(tDef.filename);
-            }
-        }
-
-        context.typeDefns = discoveredTypeDefs;
-
     }
+
+    // 3) Find custom types used in this function (depth = 2)
+    const immediateTypes = findCustomTypes(functionDefinition.functionText);
+
+    // We'll store all discovered type definitions in a list
+    const discoveredTypeDefs: TypeDefinition[] = [];
+
+    // Use a visited set for type names, so we don't loop infinitely
+    const visitedTypeNames = new Set<string>();
+
+    for (const typeName of immediateTypes) {
+        // gatherTypeDefinitionRecursive fetches this type + its sub-types up to depth=2
+        const typeResults = await gatherTypeDefinitionRecursive(
+            doc,
+            functionDefinition.functionSymbol.range.start,
+            typeName,
+            depth,
+            visitedTypeNames,
+            includeComments
+        );
+        for (const tDef of typeResults) {
+            discoveredTypeDefs.push(tDef);
+            usedFiles.add(tDef.filename);
+        }
+    }
+
+    context.typeDefns = discoveredTypeDefs;
 
     // 4) Generate a file tree for the entire workspace, marking used files
     const fileTree = await generateFileTree(usedFiles);
@@ -142,7 +143,7 @@ function getLanguageVersion(languageId: string): string | undefined {
         default:
             return undefined;
     }
-    if (!cmd) return undefined;
+    if (!cmd) { return undefined; }
 
     try {
         const output = cp.execSync(cmd, { encoding: 'utf-8' }).trim();
