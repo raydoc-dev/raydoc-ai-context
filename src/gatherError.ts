@@ -118,9 +118,9 @@ function getPackageDependencies():
         const content = fs.readFileSync(pkgPath, 'utf-8');
         const pkgJson = JSON.parse(content);
         return {
-            dependencies: pkgJson.dependencies,
-            devDependencies: pkgJson.devDependencies,
-        };
+            ...pkgJson.dependencies,
+            ...pkgJson.devDependencies,
+        } as Record<string, string>;
     } catch (err) {
         return undefined;
     }
