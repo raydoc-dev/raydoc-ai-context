@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { RaydocContext, TypeDefinition } from './types';
-import * as fs from 'fs';
+import { getPackageDependencies } from './packages';
 import * as cp from 'child_process';
 import { findCustomTypes, gatherTypeDefinitionRecursive } from './symbols';
 import { findFunctionCalls, findFunctionDefinition, getEnclosingFunction } from './functions';
@@ -49,7 +49,7 @@ export async function gatherErrorContext(
         runtime: process.version,
         runtimeVersion: getLanguageVersion(doc.languageId),
         runtimePath: '',
-        packages: getPackageDependencies(),
+        packages: getPackageDependencies(doc.languageId),
         functionDefn: functionDefinition,
         typeDefns: [],
         fileTree: undefined,
@@ -95,36 +95,6 @@ export async function gatherErrorContext(
     context.fileTree = fileTree;
 
     return context;
-}
-
-/**
- * Gather package.json dependencies if present (for JS/TS).
- * For other languages, adapt to check e.g. requirements.txt, go.mod, etc.
- */
-function getPackageDependencies():
-    | Record<string, string>
-    | undefined {
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders?.length) {
-        return undefined;
-    }
-
-    const rootPath = workspaceFolders[0].uri.fsPath;
-    const pkgPath = path.join(rootPath, 'package.json');
-    if (!fs.existsSync(pkgPath)) {
-        return undefined;
-    }
-
-    try {
-        const content = fs.readFileSync(pkgPath, 'utf-8');
-        const pkgJson = JSON.parse(content);
-        return {
-            ...pkgJson.dependencies,
-            ...pkgJson.devDependencies,
-        } as Record<string, string>;
-    } catch (err) {
-        return undefined;
-    }
 }
 
 /**
