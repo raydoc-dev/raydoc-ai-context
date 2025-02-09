@@ -46,6 +46,10 @@ export async function getTypeInfo(
 
         const type = await extractFullTypeDeclaration(defType);
         if (type) {
+            // Remove go package definitions that sometimes show up
+            if (type.split(' ')[0] === 'package') {
+                continue;
+            }
             types.push(type);
         }
     }
@@ -64,7 +68,8 @@ export async function getTypeInfo(
 function isStandardLibLocation(fsPath: string): boolean {
     return fsPath.includes('node_modules/typescript/lib/') || 
            fsPath.includes('node_modules') ||
-           fsPath.includes('lib.es');
+           fsPath.includes('lib.es') ||
+           fsPath.includes('go/src/builtin');
 }
 
 // Extract full type definition (not just identifier)
