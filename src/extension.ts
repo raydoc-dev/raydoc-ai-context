@@ -3,6 +3,7 @@ import { gatherErrorContext } from './gatherError';
 import { contextToString } from './toString';
 import { getEnclosingFunction } from './functions';
 import { getTypeInfo } from './getTypes';
+import { FunctionDefinition } from './types';
 
 export function activate(context: vscode.ExtensionContext) {
     const config = vscode.workspace.getConfiguration('raydoc-context');
@@ -132,12 +133,74 @@ async function copyLineContextAtCursorCommandHandler() {
 
     console.log('Function definition:', functionDefinition);
 
-    const paramPositions = await getFunctionParameterPositions(functionDefinition.functionSymbol, doc);
+    // Get function signature help
+    // await getFunctionSignatureHelp(doc, functionDefinition.functionSymbol);
+
+    const paramPositions = await extractParameterPositionsFromText(doc, functionDefinition);
+
+    console.log('Parameter positions:', paramPositions);
 
     for (const paramPosition of paramPositions) {
         const typeInfo = await getTypeInfo(doc, paramPosition);
         console.log('Type Info:', typeInfo);
     }
+}
+
+async function getFunctionSignatureHelp(doc: vscode.TextDocument, functionSymbol: vscode.DocumentSymbol) {
+    const functionCallPosition = new vscode.Position(
+        functionSymbol.range.start.line,
+        functionSymbol.range.start.character + functionSymbol.name.length + 1 // Inside parentheses
+    );
+
+    const signatureHelp = await vscode.commands.executeCommand<vscode.SignatureHelp>(
+        'vscode.executeSignatureHelpProvider',
+        doc.uri,
+        functionCallPosition
+    );
+
+    if (signatureHelp && signatureHelp.signatures.length > 0) {
+        console.log(`Function Signature: ${signatureHelp.signatures[0].label}`);
+        console.log(
+            "Parameters:",
+            signatureHelp.signatures[0].parameters.map(p => p.label)
+        );
+    } else {
+        console.log("No signature help available.");
+    }
+
+    return signatureHelp;
+}
+
+function extractParameterPositionsFromText(
+    doc: vscode.TextDocument,
+    functionDefintion: FunctionDefinition,
+): vscode.Position[] {
+    const startOffset = functionDefintion.functionText.indexOf('(');
+    const endOffset = functionDefintion.functionText.indexOf(')');
+
+    if (startOffset === -1 || endOffset === -1 || startOffset > endOffset) {
+        console.log("No valid parameter list found.");
+        return [];
+    }
+
+    // Extract parameter list text
+    const paramListText = functionDefintion.functionText.substring(startOffset + 1, endOffset);
+
+    // Split parameters and track positions
+    let currentOffset = startOffset + 1; // Offset relative to functionText
+    const paramPositions: vscode.Position[] = [];
+
+    paramListText.split(',').map(param => param.trim()).forEach(param => {
+        if (param.length === 0) return;
+
+        const paramOffset = functionDefintion.functionText.indexOf(param, currentOffset);
+        const absoluteOffset = doc.offsetAt(functionDefintion.functionSymbol.range.start) + paramOffset;
+        paramPositions.push(doc.positionAt(absoluteOffset));
+
+        currentOffset = paramOffset + param.length;
+    });
+
+    return paramPositions;
 }
 
 async function getFunctionParameterPositions(functionSymbol: vscode.DocumentSymbol, doc: vscode.TextDocument): Promise<vscode.Position[]> {

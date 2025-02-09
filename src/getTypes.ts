@@ -1,42 +1,36 @@
 import * as vscode from 'vscode';
-import * as ts from 'typescript';
 
 export async function getTypeInfo(
     document: vscode.TextDocument,
     position: vscode.Position
 ): Promise<string[] | undefined> {
-    // First try getting type definition
+    // Get type definitions using VS Code's LSP
     const typeDefs = await vscode.commands.executeCommand<vscode.Location[]>(
         'vscode.executeTypeDefinitionProvider',
         document.uri,
         position
     );
 
-	const types: string[] = [];
+    const types: string[] = [];
 
-	for (const typeDef of typeDefs) {
-		if (isStandardLibLocation(typeDef.uri.fsPath)) {
-			continue;
-		}
+    for (const typeDef of typeDefs || []) {
+        if (isStandardLibLocation(typeDef.uri.fsPath)) {
+            continue;
+        }
 
-		const type = await extractTypeDeclaration(typeDef);
+        const type = await extractTypeDeclaration(typeDef);
+        if (type) {
+            types.push(type);
+        }
+    }
 
-		if (type) {
-			types.push(type);
-		}
-	}
+    if (types.length > 0) {
+        return types;
+    }
 
-	if (types.length > 0) {
-		return types;
-	}
-
-	const type = await getHoverTypeInfo(document, position);
-
-	if (type) {
-		return [type];
-	}
-
-	return undefined;
+    // Fallback to hover-based type info
+    const type = await getHoverTypeInfo(document, position);
+    return type ? [type] : undefined;
 }
 
 function isStandardLibLocation(fsPath: string): boolean {
@@ -44,6 +38,22 @@ function isStandardLibLocation(fsPath: string): boolean {
            fsPath.includes('lib.es');
 }
 
+// Extract type declaration directly from VS Code API instead of parsing with TypeScript
+async function extractTypeDeclaration(location: vscode.Location): Promise<string | undefined> {
+    try {
+        const doc = await vscode.workspace.openTextDocument(location.uri);
+        const text = doc.getText(location.range).trim();
+
+        console.log("Extract type declaration: ", text);
+
+        return text || undefined;
+    } catch {
+        console.log("Failed to extract type declaration");
+        return undefined;
+    }
+}
+
+// Fallback: Get type information from hover tooltips
 async function getHoverTypeInfo(
     document: vscode.TextDocument,
     position: vscode.Position
@@ -54,60 +64,12 @@ async function getHoverTypeInfo(
         position
     );
 
-    console.log("Hovers:", hovers);
-
-    if (!hovers?.length) { return undefined; }
-
-    return hovers[0].contents
-        .map(content => {
-            if (typeof content === 'string') { return content; }
-            if ('value' in content) { return content.value; }
-            return String(content);
-        })
-        .join('\n')
-        .trim();
-}
-
-async function extractTypeDeclaration(location: vscode.Location): Promise<string | undefined> {
-    try {
-        const doc = await vscode.workspace.openTextDocument(location.uri);
-        const fileText = doc.getText();
-        const sourceFile = ts.createSourceFile(
-            doc.fileName,
-            fileText,
-            ts.ScriptTarget.ES2020,
-            true
-        );
-
-        const offset = doc.offsetAt(location.range.start);
-        const node = findRelevantNode(sourceFile, offset);
-
-        if (!node) { return undefined; }
-        
-        return fileText.substring(node.getFullStart(), node.getEnd()).trim();
-    } catch {
+    if (!hovers?.length) {
         return undefined;
     }
-}
 
-function findRelevantNode(sourceFile: ts.Node, offset: number): ts.Node | undefined {
-    let relevantNode: ts.Node | undefined;
-    
-    function visit(node: ts.Node) {
-        const start = node.getFullStart();
-        const end = node.getEnd();
-        
-        if (start <= offset && offset < end) {
-            if (ts.isInterfaceDeclaration(node) ||
-                ts.isClassDeclaration(node) ||
-                ts.isEnumDeclaration(node) ||
-                ts.isTypeAliasDeclaration(node)) {
-                relevantNode = node;
-            }
-            node.forEachChild(visit);
-        }
-    }
-    
-    visit(sourceFile);
-    return relevantNode;
+    return hovers[0].contents
+        .map(content => (typeof content === 'string' ? content : 'value' in content ? content.value : String(content)))
+        .join('\n')
+        .trim();
 }
