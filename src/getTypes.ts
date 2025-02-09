@@ -39,7 +39,7 @@ export async function getTypeInfo(
         if (!defType.uri) {
             continue;
         }
-        
+
         if (isStandardLibLocation(defType.uri.fsPath)) {
             continue;
         }
@@ -54,9 +54,11 @@ export async function getTypeInfo(
         return types;
     }
 
+    return undefined;
+
     // Fallback to hover-based type info
-    const type = await getHoverTypeInfo(document, position);
-    return type ? [type] : undefined;
+    // const type = await getHoverTypeInfo(document, position);
+    // return type ? [type] : undefined;
 }
 
 function isStandardLibLocation(fsPath: string): boolean {
