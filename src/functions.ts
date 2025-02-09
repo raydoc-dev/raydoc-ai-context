@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import * as ts from 'typescript';
 import { findEnclosingFunctionSymbol, symbolContainingRange } from './symbols';
 import { FunctionDefinition } from './types';
 
