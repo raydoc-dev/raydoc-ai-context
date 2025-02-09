@@ -1,36 +1,145 @@
 import * as vscode from 'vscode';
-import { findEnclosingFunctionSymbol, symbolContainingRange } from './symbols';
+import { DocumentSymbol, SymbolKind } from 'vscode';
+import { symbolContainingRange } from './symbols';
 import { FunctionDefinition } from './types';
 
 /**
- * Retrieves the text (and range) of the function that encloses `position` using the document symbol provider.
+ * Retrieves the text (and range) of the function (regular or arrow) that encloses `position`
+ * using the document symbol provider. If none is found, returns the entire document as a fallback.
  */
 export async function getEnclosingFunction(
     doc: vscode.TextDocument,
     position: vscode.Position
 ): Promise<FunctionDefinition | undefined> {
-    const symbols = (await vscode.commands.executeCommand(
+    // Fetch top-level symbols
+    const symbols = await vscode.commands.executeCommand<DocumentSymbol[]>(
         'vscode.executeDocumentSymbolProvider',
         doc.uri
-    )) as vscode.DocumentSymbol[] | undefined;
+    );
 
-    if (!symbols) {
-        return undefined;
+    // No symbols at all => fallback
+    if (!symbols || symbols.length === 0) {
+        return entireDocumentFallback(doc);
     }
 
-    const enclosingSymbol = findEnclosingFunctionSymbol(symbols, position);
-    if (!enclosingSymbol) {
-        return undefined;
+    // 1) Find the **deepest** symbol that encloses the position
+    const bestSymbol = findDeepestSymbolContaining(symbols, position);
+    if (!bestSymbol) {
+        // Nothing encloses our position => fallback
+        return entireDocumentFallback(doc);
     }
 
-    const text = doc.getText(enclosingSymbol.range);
+    // 2) If that symbol is recognized as a function, or a variable with a child function
+    //    that encloses position, treat it as an arrow function
+    const arrowOrFunctionSymbol = locateArrowOrFunctionSymbol(bestSymbol, position);
+    if (!arrowOrFunctionSymbol) {
+        // If we can’t confirm it's a function or arrow function, fallback
+        return entireDocumentFallback(doc);
+    }
+
+    const text = doc.getText(arrowOrFunctionSymbol.range);
     return {
         filename: doc.fileName,
         functionText: text,
-        functionSymbol: enclosingSymbol,
+        functionSymbol: arrowOrFunctionSymbol,
     };
 }
 
+/**
+ * If we can't find any enclosing function/arrow function symbol, return the entire document.
+ */
+function entireDocumentFallback(doc: vscode.TextDocument): FunctionDefinition {
+    const fullText = doc.getText();
+    // We'll create a pseudo-symbol that spans the entire file
+    const entireRange = new vscode.Range(0, 0, doc.lineCount, 0);
+
+    const fileSymbol = new vscode.DocumentSymbol(
+        doc.fileName,
+        'Entire Document',
+        SymbolKind.File,
+        entireRange,
+        entireRange
+    );
+
+    return {
+        filename: doc.fileName,
+        functionText: fullText,
+        functionSymbol: fileSymbol
+    };
+}
+
+/**
+ * Find the **deepest** symbol in `symbols` (and all descendants) that encloses `position`.
+ * This may be a variable, function, class, method, or anything else. We return
+ * the "lowest" symbol that still contains our position in `range`.
+ */
+function findDeepestSymbolContaining(
+    symbols: DocumentSymbol[],
+    position: vscode.Position
+): DocumentSymbol | undefined {
+    for (const sym of symbols) {
+        if (sym.range.contains(position)) {
+            // If a child is more specific, prefer that
+            const child = findDeepestSymbolContaining(sym.children, position);
+            return child || sym;
+        }
+    }
+    return undefined;
+}
+
+/**
+ * Given a symbol that encloses `position`, determine if it's:
+ * 1) Already a function (Function, Method, or Constructor), or
+ * 2) A variable with a child function symbol (common for arrow functions),
+ * 3) or neither.
+ *
+ * Returns the "function-like" symbol if found, else undefined.
+ */
+function locateArrowOrFunctionSymbol(
+    symbol: DocumentSymbol,
+    position: vscode.Position
+): DocumentSymbol | undefined {
+    // If it's already a known function, we’re done
+    if (
+        symbol.kind === SymbolKind.Function ||
+        symbol.kind === SymbolKind.Method ||
+        symbol.kind === SymbolKind.Constructor
+    ) {
+        return symbol;
+    }
+
+    // If it's a variable, it might be an arrow function
+    // The arrow function is often a child symbol of SymbolKind.Function
+    if (symbol.kind === SymbolKind.Variable) {
+        // Check if there is a child function symbol containing `position`
+        for (const child of symbol.children) {
+            if (
+                (child.kind === SymbolKind.Function ||
+                    child.kind === SymbolKind.Method ||
+                    child.kind === SymbolKind.Constructor) &&
+                child.range.contains(position)
+            ) {
+                return child;
+            }
+        }
+    }
+
+    // Otherwise, maybe it's something else (e.g. a class symbol or property).
+    // It could still have arrow-function children. Let's see if there's a deeper child.
+    // (Uncommon, but in TS classes you could have fields declared as arrow functions.)
+    for (const child of symbol.children) {
+        if (child.range.contains(position)) {
+            // Recurse to see if the child is a function or arrow
+            const arrowChild = locateArrowOrFunctionSymbol(child, position);
+            if (arrowChild) {
+                return arrowChild;
+            }
+        }
+    }
+
+    // If none of the above matched, no function-like symbol here
+    return undefined;
+}
 
 /**
  * Naive approach to find function calls in text by regex (e.g., "myFunc(", "someFunction(").
