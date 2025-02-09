@@ -17,13 +17,13 @@
     "contributes": {
         "commands": [
             {
-                "command": "raydoc-context.copyContextAtCursor",
+                "command": "raydoc-context.copyErrorContextAtCursor",
                 "title": "Copy Context at Cursor"
             }
         ],
         "keybindings": [
             {
-                "command": "raydoc-context.copyContextAtCursor",
+                "command": "raydoc-context.copyErrorContextAtCursor",
                 "key": "ctrl+shift+c",
                 "mac": "cmd+shift+c",
                 "when": "editorTextFocus"
