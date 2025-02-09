@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as ts from 'typescript';
 
-async function getTypeInfo(
+export async function getTypeInfo(
     document: vscode.TextDocument,
     position: vscode.Position
 ): Promise<string[] | undefined> {
@@ -14,14 +14,10 @@ async function getTypeInfo(
 
 	const types: string[] = [];
 
-	console.log("Type Definitions:", typeDefs);
-
 	for (const typeDef of typeDefs) {
 		if (isStandardLibLocation(typeDef.uri.fsPath)) {
 			continue;
 		}
-
-		console.log("Type Definition:", typeDef);
 
 		const type = await extractTypeDeclaration(typeDef);
 
@@ -60,12 +56,12 @@ async function getHoverTypeInfo(
 
     console.log("Hovers:", hovers);
 
-    if (!hovers?.length) return undefined;
+    if (!hovers?.length) { return undefined; }
 
     return hovers[0].contents
         .map(content => {
-            if (typeof content === 'string') return content;
-            if ('value' in content) return content.value;
+            if (typeof content === 'string') { return content; }
+            if ('value' in content) { return content.value; }
             return String(content);
         })
         .join('\n')
@@ -86,9 +82,7 @@ async function extractTypeDeclaration(location: vscode.Location): Promise<string
         const offset = doc.offsetAt(location.range.start);
         const node = findRelevantNode(sourceFile, offset);
 
-        console.log("Node:", node);
-        
-        if (!node) return undefined;
+        if (!node) { return undefined; }
         
         return fileText.substring(node.getFullStart(), node.getEnd()).trim();
     } catch {

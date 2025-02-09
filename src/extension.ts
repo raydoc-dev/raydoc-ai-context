@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { gatherErrorContext } from './gatherError';
 import { contextToString } from './toString';
+import { getEnclosingFunction } from './functions';
+import { getTypeInfo } from './getTypes';
 
 export function activate(context: vscode.ExtensionContext) {
     const config = vscode.workspace.getConfiguration('raydoc-context');
@@ -28,7 +30,17 @@ export function activate(context: vscode.ExtensionContext) {
         async () => { copyErrorContextAtCursorCommandHandler(); }
     );
 
-    context.subscriptions.push(providerDisposable, copyErrorContextCommand, copyErrorContextAtCursorCommand);
+    const copyLineContextAtCursorCommand = vscode.commands.registerCommand(
+        'raydoc-context.copyLineContextAtCursor',
+        async () => { copyLineContextAtCursorCommandHandler(); }
+    );
+
+    context.subscriptions.push(
+        providerDisposable,
+        copyErrorContextCommand,
+        copyErrorContextAtCursorCommand,
+        copyLineContextAtCursorCommand,
+    );
 }
 
 export function deactivate() {
@@ -91,6 +103,73 @@ async function copyErrorContextAtCursorCommandHandler() {
     } else {
         vscode.window.showWarningMessage('No context available to copy.');
     }
+}
+
+/**
+ * Command handler for "Copy line context" command.
+ */
+async function copyLineContextAtCursorCommandHandler() {
+    console.log('Copy line context at cursor');
+
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+        vscode.window.showErrorMessage('No active editor found!');
+        return;
+    }
+
+    // The position (line, character) where the user's cursor is
+    const position = editor.selection.active;
+
+    // The URI (file path) of the currently open document
+    const doc = editor.document;
+
+    const functionDefinition = await getEnclosingFunction(doc, position);
+
+    if (!functionDefinition) {
+        vscode.window.showErrorMessage('No function found at the current cursor position.');
+        return;
+    }
+
+    console.log('Function definition:', functionDefinition);
+
+    const paramPositions = await getFunctionParameterPositions(functionDefinition.functionSymbol, doc);
+
+    for (const paramPosition of paramPositions) {
+        const typeInfo = await getTypeInfo(doc, paramPosition);
+        console.log('Type Info:', typeInfo);
+    }
+}
+
+async function getFunctionParameterPositions(functionSymbol: vscode.DocumentSymbol, doc: vscode.TextDocument): Promise<vscode.Position[]> {
+    // Extract function text
+    const functionText = doc.getText(functionSymbol.range);
+
+    // Get parameter positions
+    const paramPositions = extractParameterPositions(functionText, functionSymbol.range, doc);
+    return paramPositions;
+}
+
+function extractParameterPositions(functionText: string, functionRange: vscode.Range, doc: vscode.TextDocument): vscode.Position[] {
+    const match = functionText.match(/function\s+\w+\s*\(([^)]*)\)/);
+    if (!match) { return []; }
+
+    const paramList = match[1]; // Everything inside (param1, param2)
+    const params = paramList.split(',').map(p => p.trim());
+
+    let startOffset = functionText.indexOf('(') + 1; // Start after '('
+    const positions: vscode.Position[] = [];
+
+    params.forEach(param => {
+        if (param.length === 0) { return; }
+
+        const paramOffset = functionText.indexOf(param, startOffset); // Find param in function text
+        const absoluteOffset = functionRange.start.translate(0, paramOffset); // Convert to absolute position
+
+        positions.push(absoluteOffset);
+        startOffset = paramOffset + param.length; // Move forward to avoid duplicate matches
+    });
+
+    return positions;
 }
 
 /**

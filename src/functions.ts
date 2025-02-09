@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
-import { findEnclosingSymbol, symbolContainingRange } from './symbols';
+import * as ts from 'typescript';
+import { findEnclosingFunctionSymbol, symbolContainingRange } from './symbols';
 import { FunctionDefinition } from './types';
 
 /**
@@ -8,7 +9,7 @@ import { FunctionDefinition } from './types';
 export async function getEnclosingFunction(
     doc: vscode.TextDocument,
     position: vscode.Position
-): Promise<{ functionDefn: FunctionDefinition; range: vscode.Range } | undefined> {
+): Promise<FunctionDefinition | undefined> {
     const symbols = (await vscode.commands.executeCommand(
         'vscode.executeDocumentSymbolProvider',
         doc.uri
@@ -18,19 +19,19 @@ export async function getEnclosingFunction(
         return undefined;
     }
 
-    const enclosingSymbol = findEnclosingSymbol(symbols, position);
+    const enclosingSymbol = findEnclosingFunctionSymbol(symbols, position);
     if (!enclosingSymbol) {
         return undefined;
     }
 
     const text = doc.getText(enclosingSymbol.range);
     return {
-        functionDefn: {
-            filename: doc.fileName,
-            functionText: text,
-        }, range: enclosingSymbol.range
+        filename: doc.fileName,
+        functionText: text,
+        functionSymbol: enclosingSymbol,
     };
 }
+
 
 /**
  * Naive approach to find function calls in text by regex (e.g., "myFunc(", "someFunction(").
