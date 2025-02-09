@@ -146,31 +146,6 @@ async function copyLineContextAtCursorCommandHandler() {
     }
 }
 
-async function getFunctionSignatureHelp(doc: vscode.TextDocument, functionSymbol: vscode.DocumentSymbol) {
-    const functionCallPosition = new vscode.Position(
-        functionSymbol.range.start.line,
-        functionSymbol.range.start.character + functionSymbol.name.length + 1 // Inside parentheses
-    );
-
-    const signatureHelp = await vscode.commands.executeCommand<vscode.SignatureHelp>(
-        'vscode.executeSignatureHelpProvider',
-        doc.uri,
-        functionCallPosition
-    );
-
-    if (signatureHelp && signatureHelp.signatures.length > 0) {
-        console.log(`Function Signature: ${signatureHelp.signatures[0].label}`);
-        console.log(
-            "Parameters:",
-            signatureHelp.signatures[0].parameters.map(p => p.label)
-        );
-    } else {
-        console.log("No signature help available.");
-    }
-
-    return signatureHelp;
-}
-
 function extractParameterPositionsFromText(
     doc: vscode.TextDocument,
     functionDefintion: FunctionDefinition,
@@ -201,38 +176,6 @@ function extractParameterPositionsFromText(
     });
 
     return paramPositions;
-}
-
-async function getFunctionParameterPositions(functionSymbol: vscode.DocumentSymbol, doc: vscode.TextDocument): Promise<vscode.Position[]> {
-    // Extract function text
-    const functionText = doc.getText(functionSymbol.range);
-
-    // Get parameter positions
-    const paramPositions = extractParameterPositions(functionText, functionSymbol.range, doc);
-    return paramPositions;
-}
-
-function extractParameterPositions(functionText: string, functionRange: vscode.Range, doc: vscode.TextDocument): vscode.Position[] {
-    const match = functionText.match(/function\s+\w+\s*\(([^)]*)\)/);
-    if (!match) { return []; }
-
-    const paramList = match[1]; // Everything inside (param1, param2)
-    const params = paramList.split(',').map(p => p.trim());
-
-    let startOffset = functionText.indexOf('(') + 1; // Start after '('
-    const positions: vscode.Position[] = [];
-
-    params.forEach(param => {
-        if (param.length === 0) { return; }
-
-        const paramOffset = functionText.indexOf(param, startOffset); // Find param in function text
-        const absoluteOffset = functionRange.start.translate(0, paramOffset); // Convert to absolute position
-
-        positions.push(absoluteOffset);
-        startOffset = paramOffset + param.length; // Move forward to avoid duplicate matches
-    });
-
-    return positions;
 }
 
 /**
