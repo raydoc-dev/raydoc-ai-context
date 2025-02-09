@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import { gatherErrorContext } from './gatherError';
 import { contextToString } from './toString';
-import { getEnclosingFunction, extractParameterPositions } from './functions';
-import { getTypeInfo, analyzeFunctionVariables } from './getTypes';
+import { getEnclosingFunction } from './functions';
+import { getTypeInfo, analyzeFunctionVariables, gatherTypeDefinitionsForFunction } from './getTypes';
 
 export function activate(context: vscode.ExtensionContext) {
     const config = vscode.workspace.getConfiguration('raydoc-context');
@@ -130,37 +130,8 @@ async function copyLineContextAtCursorCommandHandler() {
         return;
     }
 
-    // Get function signature help
-    // await getFunctionSignatureHelp(doc, functionDefinition.functionSymbol);
-
-    const types: string[] = [];
-
-    const paramPositions = await extractParameterPositions(doc, functionDefinition);
-
-    for (const paramPosition of paramPositions) {
-        const typeInfo = await getTypeInfo(doc, paramPosition);
-        if (typeInfo) {
-            for (const type of typeInfo) {
-                types.push(type);
-            }
-        }
-    }
-
-    // Get variable types
-    const variableTypes = await analyzeFunctionVariables(doc, functionDefinition.functionSymbol);
-
-    for (const [variableName, typeInfo] of variableTypes) {
-        if (typeInfo.length > 0) {
-            for (const type of typeInfo) {
-                types.push(type);
-            }
-        }
-    }
-
-    // Remove duplicates from types
-    const uniqueTypes = [...new Set(types)];
-
-    console.log('Types:', uniqueTypes);
+    const typeDefs = await gatherTypeDefinitionsForFunction(doc, functionDefinition);
+    console.log('Type definitions:', typeDefs);
 }
 
 /**
