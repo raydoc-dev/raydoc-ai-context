@@ -9,7 +9,7 @@ export async function analyzeFunctionVariables(
 
     // Common keywords across languages
     const commonKeywords = new Set([
-        'function', 'func',
+        'function', 'func', 'self',
         functionSymbol.name
     ]);
 
@@ -112,6 +112,11 @@ export async function getTypeInfo(
 
         const type = await extractFullTypeDeclaration(typeDef);
         if (type) {
+            // Remove go package definitions that sometimes show up
+            if (type.split(' ')[0] === 'package') {
+                continue;
+            }
+
             types.push(type);
         }
     }
@@ -142,6 +147,7 @@ export async function getTypeInfo(
             if (type.split(' ')[0] === 'package') {
                 continue;
             }
+
             types.push(type);
         }
     }
@@ -161,7 +167,9 @@ function isStandardLibLocation(fsPath: string): boolean {
     return fsPath.includes('node_modules/typescript/lib/') || 
            fsPath.includes('node_modules') ||
            fsPath.includes('lib.es') ||
-           fsPath.includes('go/src/builtin');
+           fsPath.includes('go/src') ||
+           fsPath.includes('stdlib') ||
+           fsPath.includes('python3');
 }
 
 // Extract full type definition (not just identifier)
