@@ -22,16 +22,7 @@ export async function getEnclosingFunction(
         return entireDocumentFallback(doc);
     }
 
-    // 1) Find the **deepest** symbol that encloses the position
-    const bestSymbol = findDeepestSymbolContaining(symbols, position);
-    if (!bestSymbol) {
-        // Nothing encloses our position => fallback
-        return entireDocumentFallback(doc);
-    }
-
-    // 2) If that symbol is recognized as a function, or a variable with a child function
-    //    that encloses position, treat it as an arrow function
-    const arrowOrFunctionSymbol = locateArrowOrFunctionSymbol(bestSymbol, position);
+    const arrowOrFunctionSymbol = locateArrowOrFunctionSymbol(symbols, position);
     if (!arrowOrFunctionSymbol) {
         // If we can’t confirm it's a function or arrow function, fallback
         return entireDocumentFallback(doc);
@@ -69,25 +60,6 @@ function entireDocumentFallback(doc: vscode.TextDocument): FunctionDefinition {
 }
 
 /**
- * Find the **deepest** symbol in `symbols` (and all descendants) that encloses `position`.
- * This may be a variable, function, class, method, or anything else. We return
- * the "lowest" symbol that still contains our position in `range`.
- */
-function findDeepestSymbolContaining(
-    symbols: DocumentSymbol[],
-    position: vscode.Position
-): DocumentSymbol | undefined {
-    for (const sym of symbols) {
-        if (sym.range.contains(position)) {
-            // If a child is more specific, prefer that
-            const child = findDeepestSymbolContaining(sym.children, position);
-            return child || sym;
-        }
-    }
-    return undefined;
-}
-
-/**
  * Given a symbol that encloses `position`, determine if it's:
  * 1) Already a function (Function, Method, or Constructor), or
  * 2) A variable with a child function symbol (common for arrow functions),
@@ -96,49 +68,69 @@ function findDeepestSymbolContaining(
  * Returns the "function-like" symbol if found, else undefined.
  */
 function locateArrowOrFunctionSymbol(
-    symbol: DocumentSymbol,
+    symbols: DocumentSymbol[],
     position: vscode.Position
 ): DocumentSymbol | undefined {
-    // If it's already a known function, we’re done
-    if (
-        symbol.kind === SymbolKind.Function ||
-        symbol.kind === SymbolKind.Method ||
-        symbol.kind === SymbolKind.Constructor
-    ) {
-        return symbol;
-    }
-
-    // If it's a variable, it might be an arrow function
-    // The arrow function is often a child symbol of SymbolKind.Function
-    if (symbol.kind === SymbolKind.Variable) {
-        // Check if there is a child function symbol containing `position`
-        for (const child of symbol.children) {
-            if (
-                (child.kind === SymbolKind.Function ||
-                    child.kind === SymbolKind.Method ||
-                    child.kind === SymbolKind.Constructor) &&
-                child.range.contains(position)
-            ) {
-                return child;
+    // First try to find function symbols at the current level that contain the position
+    let largestFunctionSymbol: DocumentSymbol | undefined;
+    
+    for (const symbol of symbols) {
+        if (
+            (symbol.kind === SymbolKind.Function ||
+                symbol.kind === SymbolKind.Method ||
+                symbol.kind === SymbolKind.Constructor) &&
+            symbol.range.contains(position)
+        ) {
+            // If we haven't found a function yet, or if this one has a larger range
+            if (!largestFunctionSymbol || 
+                isLargerRange(symbol.range, largestFunctionSymbol.range)) {
+                largestFunctionSymbol = symbol;
             }
         }
     }
-
-    // Otherwise, maybe it's something else (e.g. a class symbol or property).
-    // It could still have arrow-function children. Let's see if there's a deeper child.
-    // (Uncommon, but in TS classes you could have fields declared as arrow functions.)
-    for (const child of symbol.children) {
-        if (child.range.contains(position)) {
-            // Recurse to see if the child is a function or arrow
-            const arrowChild = locateArrowOrFunctionSymbol(child, position);
-            if (arrowChild) {
-                return arrowChild;
-            }
+    
+    // If we found a function at this level, return it
+    if (largestFunctionSymbol) {
+        return largestFunctionSymbol;
+    }
+    
+    // Otherwise, collect all children that contain the position
+    const relevantChildren: DocumentSymbol[] = [];
+    for (const symbol of symbols) {
+        if (symbol.range.contains(position)) {
+            relevantChildren.push(...symbol.children);
         }
     }
-
-    // If none of the above matched, no function-like symbol here
+    
+    // If we have relevant children, recurse with them
+    if (relevantChildren.length > 0) {
+        return locateArrowOrFunctionSymbol(relevantChildren, position);
+    }
+    
+    // If no functions found at this level or in children
     return undefined;
+}
+
+// Helper function to determine if range1 is larger than range2
+function isLargerRange(range1: vscode.Range, range2: vscode.Range): boolean {
+    const size1 = getRangeSize(range1);
+    const size2 = getRangeSize(range2);
+    return size1 > size2;
+}
+
+// Helper function to calculate the size of a range
+function getRangeSize(range: vscode.Range): number {
+    // If the range is on multiple lines
+    if (range.start.line !== range.end.line) {
+        return (
+            // Count full lines
+            (range.end.line - range.start.line) * Number.MAX_SAFE_INTEGER +
+            // Plus characters in the last line
+            range.end.character
+        );
+    }
+    // If the range is on a single line
+    return range.end.character - range.start.character;
 }
 
 /**

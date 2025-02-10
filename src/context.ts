@@ -15,6 +15,7 @@ export async function gatherContext(
 ): Promise<RaydocContext | undefined> {
     const filepath = getFilePath(doc);
     const line = position.line;
+    const immediateContextLines = await getImmediateContextLines(doc, position);
     const errorMessage = diag?.message || undefined;
     const languageId = doc.languageId;
     const runtime = process.version;
@@ -26,7 +27,7 @@ export async function gatherContext(
 
     var typeDefns: TypeDefinition[] = [];
     if (functionDefn) {
-        typeDefns = await gatherTypeDefinitionsForFunction(doc, functionDefn);
+        typeDefns = await gatherTypeDefinitionsForFunction(doc, functionDefn, languageId);
     } else {
         return undefined;
     }
@@ -43,6 +44,7 @@ export async function gatherContext(
     const context: RaydocContext = {
         filepath,
         line,
+        immediateContextLines,
         errorMessage,
         languageId,
         runtime,
@@ -93,4 +95,30 @@ export function getLanguageVersion(languageId: string): string | undefined {
     } catch {
         return undefined;
     }
+}
+
+export async function getImmediateContextLines(
+    doc: vscode.TextDocument,
+    position: vscode.Position
+): Promise<string> {
+    const lineCount = doc.lineCount;
+    const lineNumber = position.line;
+    
+    // Get lines before, including the current line, and after
+    const startLine = Math.max(0, lineNumber - 3); // Ensure we don't go below line 0
+    const endLine = Math.min(lineCount - 1, lineNumber + 3); // Ensure we don't go above the last line
+
+    const contextLines: string[] = [];
+    
+    // Collect the lines in the context range
+    for (let i = startLine; i <= endLine; i++) {
+        if (i === lineNumber) {
+            contextLines.push(`>>> ${doc.lineAt(i).text}`); // Highlight the current line
+        } else {
+            contextLines.push(doc.lineAt(i).text); // Push each line's text into the array
+        }
+    }
+
+    // Join all context lines with a newline separator and return
+    return contextLines.join('\n');
 }
