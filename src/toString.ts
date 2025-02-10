@@ -4,11 +4,12 @@ export function contextToString(context: RaydocContext): string {
     var output: string = '';
 
     if (context.errorMessage) {
-        output = "\n\n=== Error ===\n";
+        output = "=== Error ===\n";
         output += `Error Message: ${context.errorMessage}\n`;
+        output += "\n";
     }
 
-    output += "\n=== Context ===\n";
+    output += "=== Context ===\n";
 
     if (context.filepath) {
         output += `File: ${context.filepath}\n`;
