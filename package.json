@@ -1,6 +1,7 @@
 {
-    "name": "raydoc-context",
-    "displayName": "raydoc-context",
+    "name": "raydoc-ai-context",
+    "displayName": "Raydoc AI Context",
+    "publisher": "raydoc",
     "description": "Debugging context at your fingertips",
     "version": "0.1.2",
     "icon": "icon.png",
@@ -12,7 +13,10 @@
     ],
     "activationEvents": [
         "onStartupFinished",
-        "onLanguage:*"
+        "onLanguage:python",
+        "onLanguage:javascript",
+        "onLanguage:typescript",
+        "onLanguage:go"
     ],
     "main": "./out/extension.js",
     "contributes": {
@@ -73,5 +77,9 @@
         "typescript": "^5.7.3",
         "@vscode/test-cli": "^0.0.10",
         "@vscode/test-electron": "^2.4.1"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/raydoc-dev/raydoc-ai-context"
     }
 }
