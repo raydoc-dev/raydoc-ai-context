@@ -258,7 +258,7 @@ function getFullTextInRange(doc: vscode.TextDocument, range: vscode.Range): stri
     }
   
     // Join all lines and return the full text
-    return lines.join('\n');
+    return lines.join('');
 }
 
 
