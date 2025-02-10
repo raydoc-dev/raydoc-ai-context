@@ -9,6 +9,13 @@ export function contextToString(context: RaydocContext): string {
         output += "\n";
     }
 
+    output += "=== Focus Lines ===\n";
+
+    if (context.immediateContextLines) {
+        output += context.immediateContextLines;
+        output += "\n";
+    }
+
     output += "=== Context ===\n";
 
     if (context.filepath) {

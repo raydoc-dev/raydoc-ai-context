@@ -3,6 +3,7 @@ import { DocumentSymbol } from "vscode";
 export type RaydocContext = {
     filepath: string;
     line: number;
+    immediateContextLines?: string;
     errorMessage?: string;
     languageId: string;
     runtime?: string;
