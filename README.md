@@ -1,71 +1,38 @@
-# raydoc-context README
+# Raydoc - AI Context
 
-This is the README for your extension "raydoc-context". After writing up a brief description, we recommend including the following sections.
+**Built by Kade Angell & Taylor Rowser**  
+
+Raydoc - AI Context is a VSCode extension that extracts relevant context from your codebase to improve AI-assisted explanations. By providing detailed symbol-specific context, this extension helps Large Language Models (LLMs) better understand your code structure, dependencies, and logic.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- **Instant Context Extraction** – Press `Cmd+Shift+C` to copy the context for the symbol your cursor is on.
+- **Comprehensive Code Insights** – Includes function definitions, type information, imported packages, and file structure.
+- **Optimized for AI Integration** – Designed to provide meaningful context for LLMs when answering coding-related questions.
 
-For example if there is an image subfolder under your extension project workspace:
+## Installation
 
-\!\[feature X\]\(images/feature-x.png\)
+1. Open VSCode and navigate to the Extensions Marketplace.
+2. Search for **"Raydoc - AI Context"**.
+3. Click **Install**.
+4. You're ready to start extracting context!
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+## Usage
 
-## Requirements
+1. Place your cursor over a symbol in your code.
+2. Press `Cmd+Shift+C` (or `Ctrl+Shift+C` on Windows/Linux).
+3. The extracted context will be copied to your clipboard.
+4. Paste it into your preferred AI assistant for a more informed response.
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+## Why Use Raydoc - AI Context?
 
-## Extension Settings
+*   LLMs Need Context – AI models often lack access to the full codebase, making responses less accurate. Raydoc helps bridge this gap.
+*   Faster Debugging & Documentation – Easily extract structured context for AI-generated explanations or documentation.
+*   Works Across Languages – Supports multiple languages based on VSCode's languageId.
+*   Contributing
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+We welcome contributions! If you'd like to improve Raydoc - AI Context, feel free to open an issue or submit a pull request.
 
-For example:
+## License
 
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+This project is licensed under the MIT License.
