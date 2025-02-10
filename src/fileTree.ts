@@ -15,7 +15,7 @@ export async function generateFileTree(usedFiles: Set<string>): Promise<Node | u
     const rootPath = workspaceFolders[0].uri.fsPath;
 
     // For demo, gather all files except node_modules
-    const uris = await vscode.workspace.findFiles('**/*', '**/node_modules/**');
+    const uris = await vscode.workspace.findFiles('**/*', '{**/node_modules/**,**/lib/**,**/bin/**,**/dist/**,**/build/**,**/pyvenv.cfg,**/isympy.1}', 200);
     // Sort them so the tree is consistent
     uris.sort((a, b) => a.fsPath.localeCompare(b.fsPath));
 
@@ -27,7 +27,7 @@ export async function generateFileTree(usedFiles: Set<string>): Promise<Node | u
     };
 
     function insertIntoTree(base: Node, parts: string[]) {
-        if (!parts.length) return;
+        if (!parts.length) { return; }
         const segment = parts[0];
         let child = base.children?.find((c) => c.name === segment);
         if (!child) {

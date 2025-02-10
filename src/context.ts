@@ -6,6 +6,7 @@ import { getPackageDependencies } from './packages';
 import { FunctionDefinition, RaydocContext, TypeDefinition } from "./types";
 import { getEnclosingFunction } from './functions';
 import { gatherTypeDefinitionsForFunction } from './getTypes';
+import { generateFileTree } from './fileTree';
 
 export async function gatherContext(
     doc: vscode.TextDocument,
@@ -29,8 +30,15 @@ export async function gatherContext(
     } else {
         return undefined;
     }
-    
-    const fileTree = undefined;
+
+    const usedFiles = new Set<string>();
+    usedFiles.add(filepath);
+
+    for (const typeDefn of typeDefns) {
+        usedFiles.add(typeDefn.filename);
+    }
+
+    const fileTree = await generateFileTree(usedFiles);
 
     const context: RaydocContext = {
         filepath,

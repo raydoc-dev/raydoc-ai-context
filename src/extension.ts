@@ -138,7 +138,14 @@ async function copyLineContextAtCursorCommandHandler() {
         vscode.window.showErrorMessage('No context found for the current cursor position.');
         return;
     }
-    console.log(contextToString(context));
+    
+    const output = contextToString(context);
+    if (output) {
+        await vscode.env.clipboard.writeText(output);
+        vscode.window.showInformationMessage('Raydoc: context copied to clipboard!');
+    } else {
+        vscode.window.showWarningMessage('No context available to copy.');
+    }
 }
 
 /**
