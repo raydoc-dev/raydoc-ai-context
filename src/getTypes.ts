@@ -153,6 +153,8 @@ export async function getTypeInfo(
                 continue;
             }
 
+            console.log("Type definition:", typeDef.uri.fsPath);
+
             const typeText = await extractFullTypeDeclaration(typeDef, languageId);
             if (!typeText) {
                 continue;
@@ -181,6 +183,8 @@ export async function getTypeInfo(
                 if (!defType.uri || isStandardLibLocation(defType.uri.fsPath)) {
                     continue;
                 }
+
+                console.log("Type definition:", defType.uri.fsPath);
 
                 const typeText = await extractFullTypeDeclaration(defType, languageId);
                 if (!typeText) {
@@ -212,7 +216,13 @@ function isStandardLibLocation(fsPath: string): boolean {
            fsPath.includes('lib.es') ||
            fsPath.includes('go/src') ||
            fsPath.includes('stdlib') ||
-           fsPath.includes('python3');
+           fsPath.includes('python3') ||
+           fsPath.includes('libstdc++') ||    // GCC standard library
+           fsPath.includes('libc++') ||        // Clang standard library
+           fsPath.includes('gcc') ||           // GCC compiler
+           fsPath.includes('clang') ||          // Clang compiler
+           fsPath.includes('c++') ||
+           fsPath.includes('toml.hpp');
 }
 
 // Extract full type definition (not just identifier)
@@ -229,7 +239,7 @@ async function extractFullTypeDeclaration(location: vscode.Location, languageId:
         } else {
             fullType = extractSurroundingTypePython(fileText, location.range);
         }
-        if (fullType && (fullType.split(' ')[0] === "package" || fullType.split(' ')[0] === "import")) {
+        if (fullType && (fullType.split(' ')[0] === "package" || fullType.split(' ')[0] === "import" || fullType.split(' ')[0] === "#include")) {
             fullType = typeText;
         }
         return fullType || typeText || undefined;
