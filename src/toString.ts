@@ -9,7 +9,14 @@ export function contextToString(context: RaydocContext): string {
         output += "\n";
     }
 
-    output += "=== Context ===\n";
+    output += "=== Focus Lines ===\n";
+
+    if (context.immediateContextLines) {
+        output += context.immediateContextLines;
+        output += "\n";
+    }
+
+    output += "\n=== Context ===\n";
 
     if (context.filepath) {
         output += `File: ${context.filepath}\n`;

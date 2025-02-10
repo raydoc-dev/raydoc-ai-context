@@ -278,7 +278,7 @@ function extractSurroundingType(fileText: string, range: vscode.Range): string |
 
     // Look for the start of the type definition (interface, type, class, enum)
     let start = startLine;
-    while (start > 0 && !/^\s*(interface|type|class|enum)\s+\w+/.test(lines[start])) {
+    while (start > 0 && !/^\s*(interface|type|class|enum|export)\s+\w+/.test(lines[start])) {
         start--;
     }
 
