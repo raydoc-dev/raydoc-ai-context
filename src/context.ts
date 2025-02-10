@@ -26,7 +26,7 @@ export async function gatherContext(
 
     var typeDefns: TypeDefinition[] = [];
     if (functionDefn) {
-        typeDefns = await gatherTypeDefinitionsForFunction(doc, functionDefn);
+        typeDefns = await gatherTypeDefinitionsForFunction(doc, functionDefn, languageId);
     } else {
         return undefined;
     }
