@@ -79,7 +79,8 @@ async function copyErrorContextAtCursorCommandHandler() {
     }
 
     const position = editor.selection.active; // Cursor position
-    const docUri = editor.document.uri;
+    const doc = editor.document;
+    const docUri = doc.uri;
 
     // Get all diagnostics for this file
     const diagnostics = vscode.languages.getDiagnostics(docUri);
@@ -91,12 +92,13 @@ async function copyErrorContextAtCursorCommandHandler() {
         return;
     }
 
-    // We found an error at the cursor position; gather context
-    const context = await gatherErrorContext(docUri, diag);
+    const context = await gatherContext(doc, position, diag);
+
     if (!context) {
-        vscode.window.showWarningMessage('No context available to copy.');
+        vscode.window.showErrorMessage('No context found for the current cursor position.');
         return;
     }
+
     const output = contextToString(context);
     if (output) {
         await vscode.env.clipboard.writeText(output);
@@ -122,23 +124,13 @@ async function copyLineContextAtCursorCommandHandler() {
     // The URI (file path) of the currently open document
     const doc = editor.document;
 
-    const functionDefinition = await getEnclosingFunction(doc, position);
-
-    if (!functionDefinition) {
-        vscode.window.showErrorMessage('No function found at the current cursor position.');
-        return;
-    }
-
-    const typeDefs = await gatherTypeDefinitionsForFunction(doc, functionDefinition);
-    // console.log('Type definitions:', typeDefs);
-
     const context = await gatherContext(doc, position, undefined);
 
     if (!context) {
         vscode.window.showErrorMessage('No context found for the current cursor position.');
         return;
     }
-    
+
     const output = contextToString(context);
     if (output) {
         await vscode.env.clipboard.writeText(output);

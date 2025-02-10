@@ -3,6 +3,13 @@ import { Node, RaydocContext } from "./types";
 export function contextToString(context: RaydocContext): string {
     var output: string = '';
 
+    if (context.errorMessage) {
+        output = "\n\n=== Error ===\n";
+        output += `Error Message: ${context.errorMessage}\n`;
+    }
+
+    output += "\n=== Context ===\n";
+
     if (context.filepath) {
         output += `File: ${context.filepath}\n`;
     }
@@ -11,12 +18,7 @@ export function contextToString(context: RaydocContext): string {
         output += `Line: ${context.line + 1}\n`; // Convert to 1-based line number for readability
     }
 
-    if (context.errorMessage) {
-        output = "=== Error Context ===\n";
-        output += `File: ${context.filepath}\n`;
-        output += `Line: ${context.line}\n`;
-        output += `Error Message: ${context.errorMessage}\n`;
-    }
+    output += "\n=== Environment ===\n";
 
     if (context.languageId) {
         output += `Language: ${context.languageId}\n`;
