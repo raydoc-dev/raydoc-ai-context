@@ -6,14 +6,15 @@ import { extractParameterPositions } from './functions';
 
 export async function gatherTypeDefinitionsForFunction(
     doc: vscode.TextDocument,
-    functionDefinition: FunctionDefinition
+    functionDefinition: FunctionDefinition,
+    languageId: string
 ): Promise<TypeDefinition[]> {
     const types: TypeDefinition[] = [];
     
     const paramPositions = await extractParameterPositions(doc, functionDefinition);
 
     for (const paramPosition of paramPositions) {
-        const typeInfo = await getTypeInfo(doc, paramPosition);
+        const typeInfo = await getTypeInfo(doc, paramPosition, languageId);
         if (typeInfo) {
             for (const type of typeInfo) {
                 types.push(type);
@@ -22,7 +23,7 @@ export async function gatherTypeDefinitionsForFunction(
     }
 
     // Get variable types
-    const variableTypes = await analyzeFunctionVariables(doc, functionDefinition.functionSymbol);
+    const variableTypes = await analyzeFunctionVariables(doc, functionDefinition.functionSymbol, languageId);
 
     for (const [variableName, typeInfo] of variableTypes) {
         if (typeInfo.length > 0) {
@@ -41,7 +42,8 @@ export async function gatherTypeDefinitionsForFunction(
 
 export async function analyzeFunctionVariables(
     document: vscode.TextDocument,
-    functionSymbol: vscode.DocumentSymbol
+    functionSymbol: vscode.DocumentSymbol,
+    languageId: string
 ): Promise<Map<string, TypeDefinition[]>> {
     const variableTypes = new Map<string, TypeDefinition[]>();
     let text = document.getText(functionSymbol.range);
@@ -80,7 +82,7 @@ export async function analyzeFunctionVariables(
         // Try each position until we find valid type information
         for (const position of positions) {
             try {
-                const typeInfo = await getTypeInfo(document, position);
+                const typeInfo = await getTypeInfo(document, position, languageId);
                 if (typeInfo && typeInfo.length > 0) {
                     variableTypes.set(word, typeInfo);
                     break;  // Found valid type info, no need to check other positions
@@ -133,77 +135,70 @@ function findAllWordPositions(
 
 export async function getTypeInfo(
     document: vscode.TextDocument,
-    position: vscode.Position
+    position: vscode.Position,
+    languageId: string
 ): Promise<TypeDefinition[] | undefined> {
-    // Get type definitions using VS Code's LSP
+    const types: TypeDefinition[] = [];
+    
+    // First try type definition provider
     const typeDefs = await vscode.commands.executeCommand<vscode.Location[]>(
         'vscode.executeTypeDefinitionProvider',
         document.uri,
         position
     );
 
-    const types: TypeDefinition[] = [];
-
-    for (const typeDef of typeDefs || []) {
-        if (isStandardLibLocation(typeDef.uri.fsPath)) {
-            continue;
-        }
-
-        const typeText = await extractFullTypeDeclaration(typeDef);
-        if (typeText) {
-            // Remove go package definitions that sometimes show up
-            if (typeText.split(' ')[0] === 'package') {
+    if (typeDefs && typeDefs.length > 0) {
+        for (const typeDef of typeDefs) {
+            if (isStandardLibLocation(typeDef.uri.fsPath)) {
                 continue;
             }
 
+            const typeText = await extractFullTypeDeclaration(typeDef, languageId);
+            if (!typeText) {
+                continue;
+            }
+
+            const typeName = extractTypeName(typeText);
+
             types.push({
-                typeName: extractTypeName(typeText),
+                typeName,
                 filename: path.basename(typeDef.uri.fsPath),
                 typeText
             });
         }
     }
 
-    if (types.length > 0) {
-        return types;
-    }
+    // If no valid types found, try definition provider as fallback
+    if (types.length === 0) {
+        const defTypes = await vscode.commands.executeCommand<vscode.Location[]>(
+            'vscode.executeDefinitionProvider',
+            document.uri,
+            position
+        );
 
-    // Fallback to definition provider (sometimes gives more context)
-    const defTypes = await vscode.commands.executeCommand<vscode.Location[]>(
-        'vscode.executeDefinitionProvider',
-        document.uri,
-        position
-    );
+        if (defTypes) {
+            for (const defType of defTypes) {
+                if (!defType.uri || isStandardLibLocation(defType.uri.fsPath)) {
+                    continue;
+                }
 
-    for (const defType of defTypes || []) {
-        if (!defType.uri) {
-            continue;
-        }
+                const typeText = await extractFullTypeDeclaration(defType, languageId);
+                if (!typeText) {
+                    continue;
+                }
 
-        if (isStandardLibLocation(defType.uri.fsPath)) {
-            continue;
-        }
+                const typeName = extractTypeName(typeText);
 
-        const typeText = await extractFullTypeDeclaration(defType);
-        if (typeText) {
-            // Remove go package definitions that sometimes show up
-            if (typeText.split(' ')[0] === 'package') {
-                continue;
+                types.push({
+                    typeName,
+                    filename: path.basename(defType.uri.fsPath),
+                    typeText
+                });
             }
-
-            types.push({
-                typeName: extractTypeName(typeText),
-                filename: path.basename(defType.uri.fsPath),
-                typeText
-            });
         }
     }
 
-    if (types.length > 0) {
-        return types;
-    }
-
-    return undefined;
+    return types.length > 0 ? types : undefined;
 }
 
 function extractTypeName(typeText: string): string {
@@ -221,20 +216,59 @@ function isStandardLibLocation(fsPath: string): boolean {
 }
 
 // Extract full type definition (not just identifier)
-async function extractFullTypeDeclaration(location: vscode.Location): Promise<string | undefined> {
+async function extractFullTypeDeclaration(location: vscode.Location, languageId: string): Promise<string | undefined> {
     try {
         const doc = await vscode.workspace.openTextDocument(location.uri);
         const fileText = doc.getText();
-        let typeText = doc.getText(location.range).trim();
+        let typeText = getFullTextInRange(doc, location.range).trim();
 
         // Expand range to get the full type declaration
-        const fullType = extractSurroundingType(fileText, location.range);
-        return fullType || undefined;
+        var fullType: string | undefined;
+        if (languageId !== 'python') {
+            fullType = extractSurroundingType(fileText, location.range);
+        } else {
+            fullType = extractSurroundingTypePython(fileText, location.range);
+        }
+        if (fullType && (fullType.split(' ')[0] === "package" || fullType.split(' ')[0] === "import")) {
+            fullType = typeText;
+        }
+        return fullType || typeText || undefined;
     } catch (error) {
         console.log("Failed to extract full type declaration:", error);
         return undefined;
     }
 }
+
+function getFullTextInRange(doc: vscode.TextDocument, range: vscode.Range): string {
+    let startLine = range.start.line;
+    let endLine = range.end.line;
+    let lines: string[] = [];
+  
+    // Loop through each line in the range
+    for (let i = startLine; i <= endLine; i++) {
+        let startPos = new vscode.Position(i, 0);  // Start at the beginning of the line
+        let endPos = new vscode.Position(i + 1, 0); // End at the beginning of the next line
+        let lineText = doc.getText(new vscode.Range(startPos, endPos));
+
+        // If the line is too long (minified line), skip expanding to previous lines
+        if (lineText.length > 1000) {
+            lines.push(lineText);
+            continue;
+        }
+
+        // If the line is short (not minified), expand to the previous line
+        if (i === startLine) {
+            let previousLine = i - 1 >= 0 ? doc.getText(new vscode.Range(new vscode.Position(i - 1, 0), new vscode.Position(i, 0))).trim() : '';
+            lineText = previousLine + '\n' + lineText;
+        }
+
+        lines.push(lineText);
+    }
+  
+    // Join all lines and return the full text
+    return lines.join('');
+}
+
 
 // Expands the extracted range to get the full type definition
 function extractSurroundingType(fileText: string, range: vscode.Range): string | undefined {
@@ -272,23 +306,45 @@ function extractSurroundingType(fileText: string, range: vscode.Range): string |
     return extractedType || undefined;
 }
 
-// Fallback: Get type information from hover tooltips
-async function getHoverTypeInfo(
-    document: vscode.TextDocument,
-    position: vscode.Position
-): Promise<string | undefined> {
-    const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
-        'vscode.executeHoverProvider',
-        document.uri,
-        position
-    );
+function extractSurroundingTypePython(fileText: string, range: vscode.Range): string | undefined {
+    const lines = fileText.split("\n").filter(line => line.trim() !== "");
+    const startLine = range.start.line;
+    const endLine = range.end.line;
 
-    if (!hovers?.length) {
-        return undefined;
+    // Look for the start of the type definition (interface, type, class, enum)
+    let start = startLine;
+    while (start > 0 && !/^\s*(interface|type|class|enum)\s+\w+/.test(lines[start])) {
+        start--;
     }
 
-    return hovers[0].contents
-        .map(content => (typeof content === 'string' ? content : 'value' in content ? content.value : String(content)))
-        .join('\n')
-        .trim();
+    // If no start found, return undefined
+    if (start <= 0) { return undefined; }
+
+    // Determine the indentation level of the start line
+    const startIndentation = lines[start].search(/\S/);
+
+    // Look for the end of the type definition
+    let end = endLine;
+    let foundStart = false;
+
+    for (let i = start; i < lines.length; i++) {
+        const line = lines[i];
+        const currentIndentation = line.search(/\S/);
+
+        // If we're outside the block indentation and it's not a blank line, we've hit the end of the current type
+        if (currentIndentation < startIndentation && foundStart) {
+            end = i;
+            break;
+        }
+
+        // Detect the start of a nested type definition
+        if (/^\s*(interface|type|class|enum)\s+\w+/.test(line)) {
+            foundStart = true;
+        }
+    }
+
+    // Extract full type definition
+    const extractedType = lines.slice(start, end + 1).join("\n").trim();
+    return extractedType || undefined;
 }
+

@@ -3,7 +3,7 @@
     "displayName": "Raydoc AI Context",
     "publisher": "raydoc",
     "description": "Debugging context at your fingertips",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "icon": "icon.png",
     "engines": {
         "vscode": "^1.97.0"
