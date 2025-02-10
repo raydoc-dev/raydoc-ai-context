@@ -2,11 +2,28 @@ import { Node, RaydocContext } from "./types";
 
 export function contextToString(context: RaydocContext): string {
     var output: string = '';
+
+    if (context.filepath) {
+        output += `File: ${context.filepath}\n`;
+    }
+
+    if (context.line) {
+        output += `Line: ${context.line + 1}\n`; // Convert to 1-based line number for readability
+    }
+
     if (context.errorMessage) {
         output = "=== Error Context ===\n";
         output += `File: ${context.filepath}\n`;
         output += `Line: ${context.line}\n`;
         output += `Error Message: ${context.errorMessage}\n`;
+    }
+
+    if (context.languageId) {
+        output += `Language: ${context.languageId}\n`;
+    }
+
+    if (context.runtime) {
+        output += `Runtime: ${context.runtime}\n`;
     }
 
     if (context.packages) {

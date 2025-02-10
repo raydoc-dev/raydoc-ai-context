@@ -3,6 +3,7 @@ import { gatherErrorContext } from './gatherError';
 import { contextToString } from './toString';
 import { getEnclosingFunction } from './functions';
 import { getTypeInfo, analyzeFunctionVariables, gatherTypeDefinitionsForFunction } from './getTypes';
+import { gatherContext } from './context';
 
 export function activate(context: vscode.ExtensionContext) {
     const config = vscode.workspace.getConfiguration('raydoc-context');
@@ -109,8 +110,6 @@ async function copyErrorContextAtCursorCommandHandler() {
  * Command handler for "Copy line context" command.
  */
 async function copyLineContextAtCursorCommandHandler() {
-    console.log('Copy line context at cursor');
-
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
         vscode.window.showErrorMessage('No active editor found!');
@@ -131,7 +130,15 @@ async function copyLineContextAtCursorCommandHandler() {
     }
 
     const typeDefs = await gatherTypeDefinitionsForFunction(doc, functionDefinition);
-    console.log('Type definitions:', typeDefs);
+    // console.log('Type definitions:', typeDefs);
+
+    const context = await gatherContext(doc, position, undefined);
+
+    if (!context) {
+        vscode.window.showErrorMessage('No context found for the current cursor position.');
+        return;
+    }
+    console.log(contextToString(context));
 }
 
 /**
