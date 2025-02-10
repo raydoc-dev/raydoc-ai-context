@@ -307,7 +307,7 @@ function extractSurroundingType(fileText: string, range: vscode.Range): string |
 }
 
 function extractSurroundingTypePython(fileText: string, range: vscode.Range): string | undefined {
-    const lines = fileText.split("\n");
+    const lines = fileText.split("\n").filter(line => line.trim() !== "");
     const startLine = range.start.line;
     const endLine = range.end.line;
 
@@ -331,7 +331,7 @@ function extractSurroundingTypePython(fileText: string, range: vscode.Range): st
         const line = lines[i];
         const currentIndentation = line.search(/\S/);
 
-        // If we're outside the block indentation, we've hit the end of the current type
+        // If we're outside the block indentation and it's not a blank line, we've hit the end of the current type
         if (currentIndentation < startIndentation && foundStart) {
             end = i;
             break;
@@ -347,3 +347,4 @@ function extractSurroundingTypePython(fileText: string, range: vscode.Range): st
     const extractedType = lines.slice(start, end + 1).join("\n").trim();
     return extractedType || undefined;
 }
+
