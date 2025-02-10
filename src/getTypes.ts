@@ -153,8 +153,6 @@ export async function getTypeInfo(
                 continue;
             }
 
-            console.log("Type definition:", typeDef.uri.fsPath);
-
             const typeText = await extractFullTypeDeclaration(typeDef, languageId);
             if (!typeText) {
                 continue;
@@ -183,8 +181,6 @@ export async function getTypeInfo(
                 if (!defType.uri || isStandardLibLocation(defType.uri.fsPath)) {
                     continue;
                 }
-
-                console.log("Type definition:", defType.uri.fsPath);
 
                 const typeText = await extractFullTypeDeclaration(defType, languageId);
                 if (!typeText) {
