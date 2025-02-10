@@ -2,10 +2,10 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { RaydocContext, TypeDefinition } from './types';
 import { getPackageDependencies } from './packages';
-import * as cp from 'child_process';
 import { findCustomTypes, gatherTypeDefinitionRecursive } from './symbols';
 import { findFunctionCalls, findFunctionDefinition, getEnclosingFunction } from './functions';
 import { generateFileTree } from './fileTree';
+import { getLanguageVersion } from './context';
 
 /**
  * Gathers the entire context for a given error:
@@ -95,30 +95,4 @@ export async function gatherErrorContext(
     context.fileTree = fileTree;
 
     return context;
-}
-
-/**
- * Attempt to get an external language version (Python, Go, etc.). Otherwise return undefined.
- */
-function getLanguageVersion(languageId: string): string | undefined {
-    let cmd: string | undefined;
-    switch (languageId) {
-        case 'python':
-            cmd = 'python --version';
-            break;
-        case 'go':
-            cmd = 'go version';
-            break;
-        // Add more if needed (java, rust, etc.)
-        default:
-            return undefined;
-    }
-    if (!cmd) { return undefined; }
-
-    try {
-        const output = cp.execSync(cmd, { encoding: 'utf-8' }).trim();
-        return output;
-    } catch {
-        return undefined;
-    }
 }

@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
 import { gatherErrorContext } from './gatherError';
 import { contextToString } from './toString';
-import { getEnclosingFunction, extractParameterPositions } from './functions';
-import { getTypeInfo, analyzeFunctionVariables } from './getTypes';
+import { gatherContext } from './context';
 
 export function activate(context: vscode.ExtensionContext) {
     const config = vscode.workspace.getConfiguration('raydoc-context');
@@ -78,7 +77,8 @@ async function copyErrorContextAtCursorCommandHandler() {
     }
 
     const position = editor.selection.active; // Cursor position
-    const docUri = editor.document.uri;
+    const doc = editor.document;
+    const docUri = doc.uri;
 
     // Get all diagnostics for this file
     const diagnostics = vscode.languages.getDiagnostics(docUri);
@@ -90,12 +90,13 @@ async function copyErrorContextAtCursorCommandHandler() {
         return;
     }
 
-    // We found an error at the cursor position; gather context
-    const context = await gatherErrorContext(docUri, diag);
+    const context = await gatherContext(doc, position, diag);
+
     if (!context) {
-        vscode.window.showWarningMessage('No context available to copy.');
+        vscode.window.showErrorMessage('No context found for the current cursor position.');
         return;
     }
+
     const output = contextToString(context);
     if (output) {
         await vscode.env.clipboard.writeText(output);
@@ -109,8 +110,6 @@ async function copyErrorContextAtCursorCommandHandler() {
  * Command handler for "Copy line context" command.
  */
 async function copyLineContextAtCursorCommandHandler() {
-    console.log('Copy line context at cursor');
-
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
         vscode.window.showErrorMessage('No active editor found!');
@@ -123,44 +122,20 @@ async function copyLineContextAtCursorCommandHandler() {
     // The URI (file path) of the currently open document
     const doc = editor.document;
 
-    const functionDefinition = await getEnclosingFunction(doc, position);
+    const context = await gatherContext(doc, position, undefined);
 
-    if (!functionDefinition) {
-        vscode.window.showErrorMessage('No function found at the current cursor position.');
+    if (!context) {
+        vscode.window.showErrorMessage('No context found for the current cursor position.');
         return;
     }
 
-    // Get function signature help
-    // await getFunctionSignatureHelp(doc, functionDefinition.functionSymbol);
-
-    const types: string[] = [];
-
-    const paramPositions = await extractParameterPositions(doc, functionDefinition);
-
-    for (const paramPosition of paramPositions) {
-        const typeInfo = await getTypeInfo(doc, paramPosition);
-        if (typeInfo) {
-            for (const type of typeInfo) {
-                types.push(type);
-            }
-        }
+    const output = contextToString(context);
+    if (output) {
+        await vscode.env.clipboard.writeText(output);
+        vscode.window.showInformationMessage('Raydoc: context copied to clipboard!');
+    } else {
+        vscode.window.showWarningMessage('No context available to copy.');
     }
-
-    // Get variable types
-    const variableTypes = await analyzeFunctionVariables(doc, functionDefinition.functionSymbol);
-
-    for (const [variableName, typeInfo] of variableTypes) {
-        if (typeInfo.length > 0) {
-            for (const type of typeInfo) {
-                types.push(type);
-            }
-        }
-    }
-
-    // Remove duplicates from types
-    const uniqueTypes = [...new Set(types)];
-
-    console.log('Types:', uniqueTypes);
 }
 
 /**

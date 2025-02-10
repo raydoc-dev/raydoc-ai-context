@@ -2,11 +2,30 @@ import { Node, RaydocContext } from "./types";
 
 export function contextToString(context: RaydocContext): string {
     var output: string = '';
+
     if (context.errorMessage) {
-        output = "=== Error Context ===\n";
-        output += `File: ${context.filepath}\n`;
-        output += `Line: ${context.line}\n`;
+        output = "\n\n=== Error ===\n";
         output += `Error Message: ${context.errorMessage}\n`;
+    }
+
+    output += "\n=== Context ===\n";
+
+    if (context.filepath) {
+        output += `File: ${context.filepath}\n`;
+    }
+
+    if (context.line) {
+        output += `Line: ${context.line + 1}\n`; // Convert to 1-based line number for readability
+    }
+
+    output += "\n=== Environment ===\n";
+
+    if (context.languageId) {
+        output += `Language: ${context.languageId}\n`;
+    }
+
+    if (context.runtime) {
+        output += `Runtime: ${context.runtime}\n`;
     }
 
     if (context.packages) {
@@ -22,7 +41,7 @@ export function contextToString(context: RaydocContext): string {
     }
 
     if (context.typeDefns) {
-        output += "\n=== Type Definitions ===\n";
+        output += "\n\n=== Type Definitions ===\n";
         for (const typeDefn of context.typeDefns) {
             output += `--- Custom Type: "${typeDefn.typeName}" (${typeDefn.filename}) ---\n`;
             output += typeDefn.typeText;

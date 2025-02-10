@@ -1,10 +1,49 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
+
+import { FunctionDefinition, TypeDefinition } from './types';
+import { extractParameterPositions } from './functions';
+
+export async function gatherTypeDefinitionsForFunction(
+    doc: vscode.TextDocument,
+    functionDefinition: FunctionDefinition
+): Promise<TypeDefinition[]> {
+    const types: TypeDefinition[] = [];
+    
+    const paramPositions = await extractParameterPositions(doc, functionDefinition);
+
+    for (const paramPosition of paramPositions) {
+        const typeInfo = await getTypeInfo(doc, paramPosition);
+        if (typeInfo) {
+            for (const type of typeInfo) {
+                types.push(type);
+            }
+        }
+    }
+
+    // Get variable types
+    const variableTypes = await analyzeFunctionVariables(doc, functionDefinition.functionSymbol);
+
+    for (const [variableName, typeInfo] of variableTypes) {
+        if (typeInfo.length > 0) {
+            for (const type of typeInfo) {
+                // Make sure the type is not already in the list (match by typeName and filename)
+                if (types.find(t => t.typeName === type.typeName && t.filename === type.filename)) {
+                    continue;
+                }
+                types.push(type);
+            }
+        }
+    }
+
+    return types;
+}
 
 export async function analyzeFunctionVariables(
     document: vscode.TextDocument,
     functionSymbol: vscode.DocumentSymbol
-): Promise<Map<string, string[]>> {
-    const variableTypes = new Map<string, string[]>();
+): Promise<Map<string, TypeDefinition[]>> {
+    const variableTypes = new Map<string, TypeDefinition[]>();
     let text = document.getText(functionSymbol.range);
 
     // Common keywords across languages
@@ -95,7 +134,7 @@ function findAllWordPositions(
 export async function getTypeInfo(
     document: vscode.TextDocument,
     position: vscode.Position
-): Promise<string[] | undefined> {
+): Promise<TypeDefinition[] | undefined> {
     // Get type definitions using VS Code's LSP
     const typeDefs = await vscode.commands.executeCommand<vscode.Location[]>(
         'vscode.executeTypeDefinitionProvider',
@@ -103,21 +142,25 @@ export async function getTypeInfo(
         position
     );
 
-    const types: string[] = [];
+    const types: TypeDefinition[] = [];
 
     for (const typeDef of typeDefs || []) {
         if (isStandardLibLocation(typeDef.uri.fsPath)) {
             continue;
         }
 
-        const type = await extractFullTypeDeclaration(typeDef);
-        if (type) {
+        const typeText = await extractFullTypeDeclaration(typeDef);
+        if (typeText) {
             // Remove go package definitions that sometimes show up
-            if (type.split(' ')[0] === 'package') {
+            if (typeText.split(' ')[0] === 'package') {
                 continue;
             }
 
-            types.push(type);
+            types.push({
+                typeName: extractTypeName(typeText),
+                filename: path.basename(typeDef.uri.fsPath),
+                typeText
+            });
         }
     }
 
@@ -141,14 +184,18 @@ export async function getTypeInfo(
             continue;
         }
 
-        const type = await extractFullTypeDeclaration(defType);
-        if (type) {
+        const typeText = await extractFullTypeDeclaration(defType);
+        if (typeText) {
             // Remove go package definitions that sometimes show up
-            if (type.split(' ')[0] === 'package') {
+            if (typeText.split(' ')[0] === 'package') {
                 continue;
             }
 
-            types.push(type);
+            types.push({
+                typeName: extractTypeName(typeText),
+                filename: path.basename(defType.uri.fsPath),
+                typeText
+            });
         }
     }
 
@@ -157,10 +204,11 @@ export async function getTypeInfo(
     }
 
     return undefined;
+}
 
-    // Fallback to hover-based type info
-    // const type = await getHoverTypeInfo(document, position);
-    // return type ? [type] : undefined;
+function extractTypeName(typeText: string): string {
+    const match = typeText.match(/(interface|class|type|enum)\s+(\w+)/);
+    return match ? match[2] : "unknown";
 }
 
 function isStandardLibLocation(fsPath: string): boolean {
