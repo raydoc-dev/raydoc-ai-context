@@ -82,6 +82,7 @@ export async function analyzeFunctionVariables(
             try {
                 const typeInfo = await getTypeInfo(document, position);
                 if (typeInfo && typeInfo.length > 0) {
+                    console.log(`Found type info for ${word}:`, typeInfo, position);
                     variableTypes.set(word, typeInfo);
                     break;  // Found valid type info, no need to check other positions
                 }
@@ -135,75 +136,67 @@ export async function getTypeInfo(
     document: vscode.TextDocument,
     position: vscode.Position
 ): Promise<TypeDefinition[] | undefined> {
-    // Get type definitions using VS Code's LSP
+    const types: TypeDefinition[] = [];
+    
+    // First try type definition provider
     const typeDefs = await vscode.commands.executeCommand<vscode.Location[]>(
         'vscode.executeTypeDefinitionProvider',
         document.uri,
         position
     );
 
-    const types: TypeDefinition[] = [];
-
-    for (const typeDef of typeDefs || []) {
-        if (isStandardLibLocation(typeDef.uri.fsPath)) {
-            continue;
-        }
-
-        const typeText = await extractFullTypeDeclaration(typeDef);
-        if (typeText) {
-            // Remove go package definitions that sometimes show up
-            if (typeText.split(' ')[0] === 'package') {
+    if (typeDefs && typeDefs.length > 0) {
+        for (const typeDef of typeDefs) {
+            if (isStandardLibLocation(typeDef.uri.fsPath)) {
+                continue;
+            }
+            
+            const typeText = await extractFullTypeDeclaration(typeDef);
+            if (!typeText) {
                 continue;
             }
 
+            const typeName = extractTypeName(typeText);
+
             types.push({
-                typeName: extractTypeName(typeText),
+                typeName,
                 filename: path.basename(typeDef.uri.fsPath),
                 typeText
             });
         }
     }
 
-    if (types.length > 0) {
-        return types;
-    }
+    // If no valid types found, try definition provider as fallback
+    if (types.length === 0) {
+        const defTypes = await vscode.commands.executeCommand<vscode.Location[]>(
+            'vscode.executeDefinitionProvider',
+            document.uri,
+            position
+        );
 
-    // Fallback to definition provider (sometimes gives more context)
-    const defTypes = await vscode.commands.executeCommand<vscode.Location[]>(
-        'vscode.executeDefinitionProvider',
-        document.uri,
-        position
-    );
+        if (defTypes) {
+            for (const defType of defTypes) {
+                if (!defType.uri || isStandardLibLocation(defType.uri.fsPath)) {
+                    continue;
+                }
 
-    for (const defType of defTypes || []) {
-        if (!defType.uri) {
-            continue;
-        }
+                const typeText = await extractFullTypeDeclaration(defType);
+                if (!typeText) {
+                    continue;
+                }
 
-        if (isStandardLibLocation(defType.uri.fsPath)) {
-            continue;
-        }
+                const typeName = extractTypeName(typeText);
 
-        const typeText = await extractFullTypeDeclaration(defType);
-        if (typeText) {
-            // Remove go package definitions that sometimes show up
-            if (typeText.split(' ')[0] === 'package') {
-                continue;
+                types.push({
+                    typeName,
+                    filename: path.basename(defType.uri.fsPath),
+                    typeText
+                });
             }
-
-            types.push({
-                typeName: extractTypeName(typeText),
-                filename: path.basename(defType.uri.fsPath),
-                typeText
-            });
         }
     }
 
-    if (types.length > 0) {
-        return types;
-    }
-
-    return undefined;
+    return types.length > 0 ? types : undefined;
 }
 
 function extractTypeName(typeText: string): string {
@@ -225,15 +218,43 @@ async function extractFullTypeDeclaration(location: vscode.Location): Promise<st
     try {
         const doc = await vscode.workspace.openTextDocument(location.uri);
         const fileText = doc.getText();
-        let typeText = doc.getText(location.range).trim();
+        let typeText = getFullTextInRange(doc, location.range).trim();
 
         // Expand range to get the full type declaration
-        const fullType = extractSurroundingType(fileText, location.range);
-        return fullType || undefined;
+        var fullType = extractSurroundingType(fileText, location.range);
+        if (fullType && (fullType.split(' ')[0] === "package" || fullType.split(' ')[0] === "import")) {
+            fullType = typeText;
+        }
+        return fullType || typeText || undefined;
     } catch (error) {
         console.log("Failed to extract full type declaration:", error);
         return undefined;
     }
+}
+
+function getFullTextInRange(doc: vscode.TextDocument, range: vscode.Range): string {
+    let startLine = range.start.line;
+    let endLine = range.end.line;
+    let lines: string[] = [];
+  
+    // Loop through each line in the range
+    for (let i = startLine; i <= endLine; i++) {
+        let startPos = new vscode.Position(i, 0);  // Start at the beginning of the line
+        let endPos = new vscode.Position(i + 1, 0); // End at the beginning of the next line
+        let lineText = doc.getText(new vscode.Range(startPos, endPos)).trim();
+        
+        // If the line is too short (like a minified line), expand the range to include surrounding lines
+        if (lineText.length < 200) {
+            let previousLine = i - 1 >= 0 ? doc.getText(new vscode.Range(new vscode.Position(i - 1, 0), new vscode.Position(i, 0))).trim() : '';
+            let nextLine = doc.getText(new vscode.Range(new vscode.Position(i + 1, 0), new vscode.Position(i + 2, 0))).trim();
+            lineText = previousLine + '\n' + lineText + '\n' + nextLine;
+        }
+
+        lines.push(lineText);
+    }
+  
+    // Join all lines and return the full text
+    return lines.join('\n');
 }
 
 // Expands the extracted range to get the full type definition

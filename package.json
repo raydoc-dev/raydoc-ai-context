@@ -2,7 +2,8 @@
     "name": "raydoc-context",
     "displayName": "raydoc-context",
     "description": "Debugging context at your fingertips",
-    "version": "0.0.1",
+    "version": "0.1.2",
+    "icon": "icon.png",
     "engines": {
         "vscode": "^1.97.0"
     },
