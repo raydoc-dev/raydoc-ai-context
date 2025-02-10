@@ -1,8 +1,6 @@
 import * as vscode from 'vscode';
 import { gatherErrorContext } from './gatherError';
 import { contextToString } from './toString';
-import { getEnclosingFunction } from './functions';
-import { getTypeInfo, analyzeFunctionVariables, gatherTypeDefinitionsForFunction } from './getTypes';
 import { gatherContext } from './context';
 
 export function activate(context: vscode.ExtensionContext) {
