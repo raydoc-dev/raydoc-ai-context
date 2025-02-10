@@ -82,7 +82,6 @@ export async function analyzeFunctionVariables(
             try {
                 const typeInfo = await getTypeInfo(document, position);
                 if (typeInfo && typeInfo.length > 0) {
-                    console.log(`Found type info for ${word}:`, typeInfo, position);
                     variableTypes.set(word, typeInfo);
                     break;  // Found valid type info, no need to check other positions
                 }
@@ -241,13 +240,18 @@ function getFullTextInRange(doc: vscode.TextDocument, range: vscode.Range): stri
     for (let i = startLine; i <= endLine; i++) {
         let startPos = new vscode.Position(i, 0);  // Start at the beginning of the line
         let endPos = new vscode.Position(i + 1, 0); // End at the beginning of the next line
-        let lineText = doc.getText(new vscode.Range(startPos, endPos)).trim();
-        
-        // If the line is too short (like a minified line), expand the range to include surrounding lines
-        if (lineText.length < 200) {
+        let lineText = doc.getText(new vscode.Range(startPos, endPos));
+
+        // If the line is too long (minified line), skip expanding to previous lines
+        if (lineText.length > 1000) {
+            lines.push(lineText);
+            continue;
+        }
+
+        // If the line is short (not minified), expand to the previous line
+        if (i === startLine) {
             let previousLine = i - 1 >= 0 ? doc.getText(new vscode.Range(new vscode.Position(i - 1, 0), new vscode.Position(i, 0))).trim() : '';
-            let nextLine = doc.getText(new vscode.Range(new vscode.Position(i + 1, 0), new vscode.Position(i + 2, 0))).trim();
-            lineText = previousLine + '\n' + lineText + '\n' + nextLine;
+            lineText = previousLine + '\n' + lineText;
         }
 
         lines.push(lineText);
@@ -256,6 +260,7 @@ function getFullTextInRange(doc: vscode.TextDocument, range: vscode.Range): stri
     // Join all lines and return the full text
     return lines.join('\n');
 }
+
 
 // Expands the extracted range to get the full type definition
 function extractSurroundingType(fileText: string, range: vscode.Range): string | undefined {
@@ -291,25 +296,4 @@ function extractSurroundingType(fileText: string, range: vscode.Range): string |
     // Extract full type definition
     const extractedType = lines.slice(start, end + 1).join("\n").trim();
     return extractedType || undefined;
-}
-
-// Fallback: Get type information from hover tooltips
-async function getHoverTypeInfo(
-    document: vscode.TextDocument,
-    position: vscode.Position
-): Promise<string | undefined> {
-    const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
-        'vscode.executeHoverProvider',
-        document.uri,
-        position
-    );
-
-    if (!hovers?.length) {
-        return undefined;
-    }
-
-    return hovers[0].contents
-        .map(content => (typeof content === 'string' ? content : 'value' in content ? content.value : String(content)))
-        .join('\n')
-        .trim();
 }
