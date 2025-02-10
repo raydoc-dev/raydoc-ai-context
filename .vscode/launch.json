@@ -10,8 +10,7 @@
             "type": "extensionHost",
             "request": "launch",
             "args": [
-                "--extensionDevelopmentPath=${workspaceFolder}",
-                "${workspaceFolder}/../../repos/4610-ReptileTracker"
+                "--extensionDevelopmentPath=${workspaceFolder}"
             ],
             "outFiles": [
                 "${workspaceFolder}/out/**/*.js"

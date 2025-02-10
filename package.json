@@ -23,19 +23,17 @@
             {
                 "command": "raydoc-context.copyLineContextAtCursor",
                 "title": "Copy Line Context at Cursor"
+            },
+            {
+                "command": "raydoc-context.copyContextAtCursor",
+                "title": "Copy Context at Cursor"
             }
         ],
         "keybindings": [
             {
-                "command": "raydoc-context.copyErrorContextAtCursor",
+                "command": "raydoc-context.copyContextAtCursor",
                 "key": "ctrl+shift+c",
                 "mac": "cmd+shift+c",
-                "when": "editorTextFocus"
-            },
-            {
-                "command": "raydoc-context.copyLineContextAtCursor",
-                "key": "ctrl+alt+l",
-                "mac": "cmd+alt+l",
                 "when": "editorTextFocus"
             }
         ],
