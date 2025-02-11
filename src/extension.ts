@@ -4,11 +4,6 @@ import { contextToString } from './toString';
 import { gatherContext } from './context';
 
 export function activate(context: vscode.ExtensionContext) {
-    const config = vscode.workspace.getConfiguration('raydoc-context');
-    const includeComments = config.get('includeComments') as boolean;
-    const depth = config.get('depth') as number;
-
-
     // 1) Register a Code Action Provider for errors:
     const codeActionProvider = new ErrorContextCodeActionProvider();
     const providerDisposable = vscode.languages.registerCodeActionsProvider(

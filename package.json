@@ -47,16 +47,6 @@
             "type": "object",
             "title": "Raydoc Settings",
             "properties": {
-                "raydoc-context.includeComments": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Include comments in the copied context"
-                },
-                "raydoc-context.depth": {
-                    "type": "number",
-                    "default": 2,
-                    "description": "Depth of the context to copy"
-                },
                 "raydoc-context.output-config.environment": {
                     "type": "boolean",
                     "default": true,
