@@ -49,7 +49,7 @@
             "properties": {
                 "raydoc-context.includeComments": {
                     "type": "boolean",
-                    "default": false,
+                    "default": true,
                     "description": "Include comments in the copied context"
                 },
                 "raydoc-context.depth": {
