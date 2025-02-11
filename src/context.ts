@@ -83,7 +83,12 @@ export function getLanguageVersion(languageId: string): string | undefined {
         case 'go':
             cmd = 'go version';
             break;
-        // Add more if needed (java, rust, etc.)
+        case 'typescript':
+            cmd = 'tsc --version';  // TypeScript version
+            break;
+        case 'javascript':
+            cmd = 'node --version';  // Node.js version (JavaScript runtime)
+            break;
         default:
             return undefined;
     }
@@ -91,11 +96,14 @@ export function getLanguageVersion(languageId: string): string | undefined {
 
     try {
         const output = cp.execSync(cmd, { encoding: 'utf-8' }).trim();
-        return output;
+        // Remove any newlines or other whitespace and the word 'version'
+        const cleanedOutput = output.replace(/[\n\r]/g, '').replace(/Version/g, '').trim();
+        return cleanedOutput;
     } catch {
         return undefined;
     }
 }
+
 
 export async function getImmediateContextLines(
     doc: vscode.TextDocument,
@@ -115,7 +123,7 @@ export async function getImmediateContextLines(
         if (i === lineNumber) {
             contextLines.push(`>>> ${doc.lineAt(i).text}`); // Highlight the current line
         } else {
-            contextLines.push(doc.lineAt(i).text); // Push each line's text into the array
+            contextLines.push(`    ${doc.lineAt(i).text}`); // Push each line's text into the array
         }
     }
 

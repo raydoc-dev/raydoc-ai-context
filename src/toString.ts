@@ -13,7 +13,7 @@ export function contextToString(context: RaydocContext): string {
 
     if (context.immediateContextLines) {
         output += context.immediateContextLines;
-        output += "\n";
+        output += "\n\n";
     }
 
     output += "=== Context ===\n";
@@ -33,7 +33,7 @@ export function contextToString(context: RaydocContext): string {
     }
 
     if (context.runtime) {
-        output += `Runtime: ${context.runtime}\n`;
+        output += `Version: ${context.runtimeVersion}\n`;
     }
 
     if (context.packages) {
@@ -57,10 +57,10 @@ export function contextToString(context: RaydocContext): string {
         }
     }
 
-    if (context.fileTree) {
-        output += "\n=== Workspace File Tree ===\n";
-        output += fileTreeToString(context.fileTree, '');
-    }
+    // if (context.fileTree) {
+    //     output += "\n=== Workspace File Tree ===\n";
+    //     output += fileTreeToString(context.fileTree, '');
+    // }
 
     return output;
 }
