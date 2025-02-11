@@ -30,26 +30,6 @@ Raydoc - AI Context is a VSCode extension that extracts relevant context from yo
 *   Faster Debugging & Documentation – Easily extract structured context for AI-generated explanations or documentation.
 *   Works Across Languages – Supports multiple languages based on VSCode's languageId.
 
-## Installation
-
-1. Open VSCode and navigate to the Extensions Marketplace.
-2. Search for **"Raydoc - AI Context"**.
-3. Click **Install**.
-4. You're ready to start extracting context!
-
-## Usage
-
-1. Place your cursor over a symbol in your code.
-2. Press `Cmd+Shift+C` (or `Ctrl+Shift+C` on Windows/Linux).
-3. The extracted context will be copied to your clipboard.
-4. Paste it into your preferred AI assistant for a more informed response.
-
-## Why Use Raydoc - AI Context?
-
-*   LLMs Need Context – AI models often lack access to the full codebase, making responses less accurate. Raydoc helps bridge this gap.
-*   Faster Debugging & Documentation – Easily extract structured context for AI-generated explanations or documentation.
-*   Works Across Languages – Supports multiple languages based on VSCode's languageId.
-
 ## Contributing
 
 We welcome contributions! If you'd like to improve Raydoc - AI Context, feel free to open an issue or submit a pull request.
