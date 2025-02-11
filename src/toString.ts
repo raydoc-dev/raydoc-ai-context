@@ -1,6 +1,17 @@
 import { Node, RaydocContext } from "./types";
+import * as vscode from 'vscode';
 
 export function contextToString(context: RaydocContext): string {
+    const config = vscode.workspace.getConfiguration('raydoc-context.output-config');
+    const includeEnvironment = config.get<boolean>('environment', true);
+    const includeRuntimeVersion = config.get<boolean>('runtime-version', true);
+    const includeFocusedLines = config.get<boolean>('focused-lines', true);
+    const includePackages = config.get<boolean>('packages', true);
+    const includeFileTree = config.get<boolean>('file-tree', false);
+    const includeFunctionDefn = config.get<boolean>('function-definition', true);
+    const includeTypeDefns = config.get<boolean>('type-definitions', true);
+    const includeReferencedFunctions = config.get<boolean>('referenced-functions', false);
+
     var output: string = '';
 
     if (context.errorMessage) {
@@ -9,11 +20,13 @@ export function contextToString(context: RaydocContext): string {
         output += "\n";
     }
 
-    output += "=== Focus Lines ===\n";
+    if (includeFocusedLines) {
+        output += "=== Focus Lines ===\n";
 
-    if (context.immediateContextLines) {
-        output += context.immediateContextLines;
-        output += "\n\n";
+        if (context.immediateContextLines) {
+            output += context.immediateContextLines;
+            output += "\n\n";
+        }
     }
 
     output += "=== Context ===\n";
@@ -26,29 +39,31 @@ export function contextToString(context: RaydocContext): string {
         output += `Line: ${context.line + 1}\n`; // Convert to 1-based line number for readability
     }
 
-    output += "\n=== Environment ===\n";
+    if (includeEnvironment) {
+        output += "\n=== Environment ===\n";
 
-    if (context.languageId) {
-        output += `Language: ${context.languageId}\n`;
+        if (context.languageId) {
+            output += `Language: ${context.languageId}\n`;
+        }
+
+        if (context.runtime) {
+            output += `Version: ${context.runtimeVersion}\n`;
+        }
     }
 
-    if (context.runtime) {
-        output += `Version: ${context.runtimeVersion}\n`;
-    }
-
-    if (context.packages) {
+    if (includePackages && context.packages) {
         output += "\n=== Packages ===\n";
         for (const [name, version] of Object.entries(context.packages)) {
             output += `${name}: ${version}\n`;
         }
     }
 
-    if (context.functionDefn) {
+    if (includeFunctionDefn && context.functionDefn) {
         output += `\n=== Enclosing Function (${context.functionDefn.filename}) ===\n`;
         output += context.functionDefn.functionText;
     }
 
-    if (context.typeDefns) {
+    if (includeTypeDefns && context.typeDefns) {
         output += "\n\n=== Type Definitions ===\n";
         for (const typeDefn of context.typeDefns) {
             output += `--- Custom Type: "${typeDefn.typeName}" (${typeDefn.filename}) ---\n`;
@@ -57,10 +72,19 @@ export function contextToString(context: RaydocContext): string {
         }
     }
 
-    // if (context.fileTree) {
-    //     output += "\n=== Workspace File Tree ===\n";
-    //     output += fileTreeToString(context.fileTree, '');
-    // }
+    if (includeFileTree && context.fileTree) {
+        output += "\n=== Workspace File Tree ===\n";
+        output += fileTreeToString(context.fileTree, '');
+    }
+
+    if (includeReferencedFunctions && context.referencedFunctions) {
+        output += "\n=== Referenced Functions ===\n";
+        for (const refFunc of context.referencedFunctions) {
+            output += `--- ${refFunc.filename} ---\n`;
+            output += refFunc.functionText;
+            output += '\n\n';
+        }
+    }
 
     return output;
 }
