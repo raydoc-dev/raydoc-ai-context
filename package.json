@@ -3,7 +3,7 @@
     "displayName": "Raydoc AI Context",
     "publisher": "raydoc",
     "description": "Context for an LLM with a single command",
-    "version": "0.1.5",
+    "version": "0.1.6",
     "icon": "icon.png",
     "engines": {
         "vscode": "^1.97.0"
@@ -51,15 +51,45 @@
             "type": "object",
             "title": "Raydoc Settings",
             "properties": {
-                "raydoc-context.includeComments": {
+                "raydoc-context.output-config.environment": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Include the current code environment in the copied context"
+                },
+                "raydoc-context.output-config.runtime-version": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Include your runtime version in the copied context"
+                },
+                "raydoc-context.output-config.focused-lines": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Include the lines around the cursor in the copied context"
+                },
+                "raydoc-context.output-config.packages": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Include project-specific packages in the copied context"
+                },
+                "raydoc-context.output-config.file-tree": {
                     "type": "boolean",
                     "default": false,
-                    "description": "Include comments in the copied context"
+                    "description": "Include a file tree in the copied context"
                 },
-                "raydoc-context.depth": {
-                    "type": "number",
-                    "default": 2,
-                    "description": "Depth of the context to copy"
+                "raydoc-context.output-config.function-definition": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Include the entire function your cursor is inside in the copied context"
+                },
+                "raydoc-context.output-config.type-definitions": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Include type definitions in the copied context"
+                },
+                "raydoc-context.output-config.referenced-functions": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Include all referenced functions in the copied context"
                 }
             }
         }
