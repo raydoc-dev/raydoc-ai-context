@@ -133,6 +133,46 @@ function findAllWordPositions(
     return positions;
 }
 
+export async function getTypesForLine(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+) {
+    const typeDefinitions: TypeDefinition[] = [];
+    const line = document.lineAt(position.line).text;
+
+    // Change all non-alphabet characters to spaces
+    const words = line.replace(/[^a-zA-Z]/g, ' ');
+
+    // Find the position of each word in the line
+    const positions: vscode.Position[] = [];
+    const positionWords = words.split(' ');
+    let inWord = false;
+    for (let i = 0; i < words.length; i++) {
+        const character = words[i];
+        if (character === ' ') {
+            inWord = false;
+            continue;
+        }
+
+        if (!inWord) {
+            positions.push(new vscode.Position(position.line, i));
+            inWord = true;
+        }
+    }
+
+    console.log(positions);
+
+    for (const pos of positions) {
+        const typeInfo = await getTypeInfo(document, pos, document.languageId);
+        if (typeInfo) {
+            console.log(typeInfo);
+            typeDefinitions.push(...typeInfo);
+        }
+    }
+
+    console.log(typeDefinitions);
+}
+
 export async function getTypeInfo(
     document: vscode.TextDocument,
     position: vscode.Position,
@@ -146,6 +186,8 @@ export async function getTypeInfo(
         document.uri,
         position
     );
+
+    console.log(typeDefs);
 
     if (typeDefs && typeDefs.length > 0) {
         for (const typeDef of typeDefs) {
@@ -313,44 +355,37 @@ function extractSurroundingType(fileText: string, range: vscode.Range): string |
 }
 
 function extractSurroundingTypePython(fileText: string, range: vscode.Range): string | undefined {
-    const lines = fileText.split("\n").filter(line => line.trim() !== "");
+    const lines = fileText.split("\n");
     const startLine = range.start.line;
     const endLine = range.end.line;
 
-    // Look for the start of the type definition (interface, type, class, enum)
-    let start = startLine;
-    while (start > 0 && !/^\s*(interface|type|class|enum)\s+\w+/.test(lines[start])) {
-        start--;
-    }
-
-    // If no start found, return undefined
-    if (start <= 0) { return undefined; }
-
     // Determine the indentation level of the start line
-    const startIndentation = lines[start].search(/\S/);
+    const startIndentation = lines[startLine].search(/\S/);
 
     // Look for the end of the type definition
     let end = endLine;
     let foundStart = false;
 
-    for (let i = start; i < lines.length; i++) {
+    for (let i = startLine; i < lines.length; i++) {
         const line = lines[i];
+
+        if (line.trim() === "") {
+            continue;
+        }
+
         const currentIndentation = line.search(/\S/);
 
         // If we're outside the block indentation and it's not a blank line, we've hit the end of the current type
-        if (currentIndentation < startIndentation && foundStart) {
+        if (currentIndentation <= startIndentation && foundStart) {
             end = i;
             break;
         }
 
-        // Detect the start of a nested type definition
-        if (/^\s*(interface|type|class|enum)\s+\w+/.test(line)) {
-            foundStart = true;
-        }
+        foundStart = true;
     }
 
     // Extract full type definition
-    const extractedType = lines.slice(start, end + 1).join("\n").trim();
+    const extractedType = lines.slice(startLine, end + 1).join("\n").trim();
     return extractedType || undefined;
 }
 

@@ -33,6 +33,10 @@
             {
                 "command": "raydoc-context.copyContextAtCursor",
                 "title": "Copy Context at Cursor"
+            },
+            {
+                "command": "raydoc-context.inspectTypesAtCursor",
+                "title": "Inspect Types at Cursor"
             }
         ],
         "keybindings": [

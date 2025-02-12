@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { gatherErrorContext } from './gatherError';
 import { contextToString } from './toString';
 import { gatherContext } from './context';
+import { getTypeInfo, getTypesForLine } from './getTypes';
 
 export function activate(context: vscode.ExtensionContext) {
     const config = vscode.workspace.getConfiguration('raydoc-context');
@@ -39,12 +40,18 @@ export function activate(context: vscode.ExtensionContext) {
         async () => { copyContextAtCursorCommandHandler(); }
     );
 
+    const inspectTypsAtCursorCommand = vscode.commands.registerCommand(
+        'raydoc-context.inspectTypesAtCursor',
+        async () => { inspectTypesAtCursorCommandHandler(); }
+    );
+
     context.subscriptions.push(
         providerDisposable,
         copyErrorContextCommand,
         copyErrorContextAtCursorCommand,
         copyLineContextAtCursorCommand,
         copyContextAtCursorCommand,
+        inspectTypsAtCursorCommand,
     );
 }
 
@@ -176,6 +183,22 @@ async function copyLineContextAtCursorCommandHandler() {
     } else {
         vscode.window.showWarningMessage('No context available to copy.');
     }
+}
+
+async function inspectTypesAtCursorCommandHandler() {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+        vscode.window.showErrorMessage('No active editor found!');
+        return;
+    }
+
+    // The position (line, character) where the user's cursor is
+    const position = editor.selection.active;
+
+    // The current document
+    const doc = editor.document;
+
+    const type = await getTypesForLine(doc, position);
 }
 
 /**
