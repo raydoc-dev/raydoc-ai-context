@@ -4,7 +4,6 @@ import * as cp from 'child_process';
 
 import { getPackageDependencies } from './packages';
 import { FunctionDefinition, RaydocContext, TypeDefinition } from "./types";
-import { getEnclosingFunction } from './functions';
 import { gatherTypeDefinitionsForFunction } from './getTypes';
 import { generateFileTree } from './fileTree';
 
@@ -13,51 +12,53 @@ export async function gatherContext(
     position: vscode.Position,
     diag: vscode.Diagnostic | undefined
 ): Promise<RaydocContext | undefined> {
-    const filepath = getFilePath(doc);
-    const line = position.line;
-    const immediateContextLines = await getImmediateContextLines(doc, position);
-    const errorMessage = diag?.message || undefined;
-    const languageId = doc.languageId;
-    const runtime = process.version;
-    const runtimeVersion = getLanguageVersion(doc.languageId);
-    const runtimePath = '';
-    const packages = getPackageDependencies(doc.languageId);
-    const functionDefn = await getEnclosingFunction(doc, position);
-    const referencedFunctions: FunctionDefinition[] = [];
+    // const filepath = getFilePath(doc);
+    // const line = position.line;
+    // const immediateContextLines = await getImmediateContextLines(doc, position);
+    // const errorMessage = diag?.message || undefined;
+    // const languageId = doc.languageId;
+    // const runtime = process.version;
+    // const runtimeVersion = getLanguageVersion(doc.languageId);
+    // const runtimePath = '';
+    // const packages = getPackageDependencies(doc.languageId);
+    // // const functionDefn = await getEnclosingFunction(doc, position);
+    // const referencedFunctions: FunctionDefinition[] = [];
 
-    var typeDefns: TypeDefinition[] = [];
-    if (functionDefn) {
-        typeDefns = await gatherTypeDefinitionsForFunction(doc, functionDefn, languageId);
-    } else {
-        return undefined;
-    }
+    // var typeDefns: TypeDefinition[] = [];
+    // if (functionDefn) {
+    //     typeDefns = await gatherTypeDefinitionsForFunction(doc, functionDefn, languageId);
+    // } else {
+    //     return undefined;
+    // }
 
-    const usedFiles = new Set<string>();
-    usedFiles.add(filepath);
+    // const usedFiles = new Set<string>();
+    // usedFiles.add(filepath);
 
-    for (const typeDefn of typeDefns) {
-        usedFiles.add(typeDefn.filename);
-    }
+    // for (const typeDefn of typeDefns) {
+    //     usedFiles.add(typeDefn.filename);
+    // }
 
-    const fileTree = await generateFileTree(usedFiles);
+    // const fileTree = await generateFileTree(usedFiles);
 
-    const context: RaydocContext = {
-        filepath,
-        line,
-        immediateContextLines,
-        errorMessage,
-        languageId,
-        runtime,
-        runtimeVersion,
-        runtimePath,
-        packages,
-        functionDefn,
-        referencedFunctions,
-        typeDefns,
-        fileTree
-    };
+    // const context: RaydocContext = {
+    //     filepath,
+    //     line,
+    //     immediateContextLines,
+    //     errorMessage,
+    //     languageId,
+    //     runtime,
+    //     runtimeVersion,
+    //     runtimePath,
+    //     packages,
+    //     functionDefn,
+    //     referencedFunctions,
+    //     typeDefns,
+    //     fileTree
+    // };
 
-    return context;
+    // return context;
+
+    return undefined;
 }
 
 function getFilePath(doc: vscode.TextDocument): string {

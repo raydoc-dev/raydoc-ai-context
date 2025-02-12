@@ -20,6 +20,8 @@ export type FunctionDefinition = {
     filename: string;
     functionText: string;
     functionSymbol: DocumentSymbol;
+    startLine: number;
+    endLine: number;
 }
 
 export type TypeDefinition = {

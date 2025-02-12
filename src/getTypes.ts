@@ -133,6 +133,13 @@ function findAllWordPositions(
     return positions;
 }
 
+export async function getTypesForFunction(
+    document: vscode.TextDocument,
+    functionDefinition: FunctionDefinition,
+) {
+    const functionTypeDefinitions: TypeDefinition[] = [];
+}
+
 export async function getTypesForLine(
     document: vscode.TextDocument,
     position: vscode.Position,
@@ -145,7 +152,6 @@ export async function getTypesForLine(
 
     // Find the position of each word in the line
     const positions: vscode.Position[] = [];
-    const positionWords = words.split(' ');
     let inWord = false;
     for (let i = 0; i < words.length; i++) {
         const character = words[i];
@@ -160,17 +166,25 @@ export async function getTypesForLine(
         }
     }
 
-    console.log(positions);
-
     for (const pos of positions) {
         const typeInfo = await getTypeInfo(document, pos, document.languageId);
         if (typeInfo) {
-            console.log(typeInfo);
             typeDefinitions.push(...typeInfo);
         }
     }
 
-    console.log(typeDefinitions);
+    // Remove type definitions with the same typeName and filename
+    const uniqueTypeDefinitions = new Map<string, TypeDefinition>();
+    for (const typeDef of typeDefinitions) {
+        if (typeDef.typeName === 'unknown') {
+            continue;
+        }
+
+        const key = `${typeDef.typeName}-${typeDef.filename}`;
+        uniqueTypeDefinitions.set(key, typeDef);
+    }
+
+    console.log(uniqueTypeDefinitions);
 }
 
 export async function getTypeInfo(
@@ -187,11 +201,13 @@ export async function getTypeInfo(
         position
     );
 
-    console.log(typeDefs);
-
     if (typeDefs && typeDefs.length > 0) {
         for (const typeDef of typeDefs) {
-            if (isStandardLibLocation(typeDef.uri.fsPath)) {
+            // if (isStandardLibLocation(typeDef.uri.fsPath)) {
+            //     continue;
+            // }
+
+            if (!typeDef.uri || !isInWorkspace(typeDef.uri.fsPath)) {
                 continue;
             }
 
@@ -220,7 +236,11 @@ export async function getTypeInfo(
 
         if (defTypes) {
             for (const defType of defTypes) {
-                if (!defType.uri || isStandardLibLocation(defType.uri.fsPath)) {
+                // if (!defType.uri || isStandardLibLocation(defType.uri.fsPath)) {
+                //     continue;
+                // }
+
+                if (!defType.uri || !isInWorkspace(defType.uri.fsPath)) {
                     continue;
                 }
 
@@ -246,6 +266,15 @@ export async function getTypeInfo(
 function extractTypeName(typeText: string): string {
     const match = typeText.match(/(interface|class|type|enum)\s+(\w+)/);
     return match ? match[2] : "unknown";
+}
+
+function isInWorkspace(fsPath: string): boolean {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders) {
+        return false; // No workspace open
+    }
+
+    return workspaceFolders.some(folder => fsPath.startsWith(folder.uri.fsPath));
 }
 
 function isStandardLibLocation(fsPath: string): boolean {
@@ -317,7 +346,6 @@ function getFullTextInRange(doc: vscode.TextDocument, range: vscode.Range): stri
     return lines.join('');
 }
 
-
 // Expands the extracted range to get the full type definition
 function extractSurroundingType(fileText: string, range: vscode.Range): string | undefined {
     const lines = fileText.split("\n");
@@ -388,4 +416,3 @@ function extractSurroundingTypePython(fileText: string, range: vscode.Range): st
     const extractedType = lines.slice(startLine, end + 1).join("\n").trim();
     return extractedType || undefined;
 }
-

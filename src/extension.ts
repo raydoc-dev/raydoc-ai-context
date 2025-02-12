@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import { gatherErrorContext } from './gatherError';
 import { contextToString } from './toString';
 import { gatherContext } from './context';
 import { getTypeInfo, getTypesForLine } from './getTypes';
+import { getFunctionDefinition } from './functions';
 
 export function activate(context: vscode.ExtensionContext) {
     // 1) Register a Code Action Provider for errors:
@@ -12,12 +12,6 @@ export function activate(context: vscode.ExtensionContext) {
         { scheme: 'file', language: '*' },
         codeActionProvider,
         { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
-    );
-
-    // 2) Register the "copy error context" command invoked by the Code Action
-    const copyErrorContextCommand = vscode.commands.registerCommand(
-        'raydoc-context.copyErrorContext',
-        async (uri: vscode.Uri, diagnostic: vscode.Diagnostic) => { copyErrorContextCommandHandler(uri, diagnostic); }
     );
 
     const copyErrorContextAtCursorCommand = vscode.commands.registerCommand(
@@ -42,7 +36,6 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         providerDisposable,
-        copyErrorContextCommand,
         copyErrorContextAtCursorCommand,
         copyLineContextAtCursorCommand,
         copyContextAtCursorCommand,
@@ -52,25 +45,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {
     // Cleanup if needed
-}
-
-/**
- * Command handler for "Copy context" command.
- */
-async function copyErrorContextCommandHandler(uri: vscode.Uri, diagnostic: vscode.Diagnostic) {
-    // Gather all context data (environment, function text, file tree, etc.)
-    const context = await gatherErrorContext(uri, diagnostic);
-    if (!context) {
-        vscode.window.showWarningMessage('No context available to copy.');
-        return;
-    }
-    const output = contextToString(context);
-    if (output) {
-        await vscode.env.clipboard.writeText(output);
-        vscode.window.showInformationMessage('Raydoc: Context copied to clipboard!');
-    } else {
-        vscode.window.showWarningMessage('No context available to copy.');
-    }
 }
 
 /**
@@ -193,7 +167,11 @@ async function inspectTypesAtCursorCommandHandler() {
     // The current document
     const doc = editor.document;
 
-    const type = await getTypesForLine(doc, position);
+    const functionDefinition = await getFunctionDefinition(doc, position);
+
+    console.log(functionDefinition);
+
+    // const type = await getTypesForLine(doc, position);
 }
 
 /**
