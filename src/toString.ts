@@ -91,6 +91,29 @@ export function contextToString(context: RaydocContext): string {
     return output;
 }
 
+export function contextToStringLlm(context: RaydocContext): string {
+    const config = vscode.workspace.getConfiguration('raydoc-context.output-config');
+    const includeFocusedLines = config.get<boolean>('focused-lines', true);
+    
+    let output = "";
+    if (context.errorMessage) {
+        output = "=== Error ===\n";
+        output += `Error Message: ${context.errorMessage}\n`;
+        output += "\n";
+    }
+
+    if (includeFocusedLines) {
+        output += "=== Focus Lines ===\n";
+
+        if (context.immediateContextLines) {
+            output += context.immediateContextLines;
+            output += "\n\n";
+        }
+    }
+
+    return "";
+}
+
 function fileTreeToString(node: Node, indent: string): string {
     let output = `${indent}${node.name}${node.isDir ? '/' : ''}\n`;
     if (node.children) {

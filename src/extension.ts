@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { contextToString } from './toString';
+import { contextToString, contextToStringLlm } from './toString';
 import { gatherContext } from './context';
 import { getFunctionDefinition } from './functions';
 import { FunctionDefinition } from './types';
@@ -86,25 +86,30 @@ async function sendContextToLlmCommandHandler() {
     const originalFileUri = doc.uri;
 
     // Process all function references
-    await selectAndSendToCopilot(functionDefinition);
+    await selectAndSendToLlm(functionDefinition);
 
     for (const typeDefn of context.typeDefns || []) {
-        await selectAndSendToCopilot(typeDefn);
+        await selectAndSendToLlm(typeDefn);
     }
 
     for (const referencedFunction of context.referencedFunctions || []) {
-        await selectAndSendToCopilot(referencedFunction);
+        await selectAndSendToLlm(referencedFunction);
     }
 
     // Switch back to the original file and restore cursor position
     const originalDoc = await vscode.workspace.openTextDocument(originalFileUri);
     const originalEditor = await vscode.window.showTextDocument(originalDoc, vscode.ViewColumn.One);
 
+
     originalEditor.selection = new vscode.Selection(position, position);
+
+    const output = contextToStringLlm(context);
+    await vscode.env.clipboard.writeText(output);
+
+    vscode.window.showInformationMessage('Raydoc: context copied to clipboard and sent to LLM!');
 }
 
-
-async function selectAndSendToCopilot(functionDefinition: FunctionDefinition) {
+async function selectAndSendToLlm(functionDefinition: FunctionDefinition) {
     // Get the file URI from the function definition (relative to the workspace root)
     const fullFilePath = vscode.workspace.workspaceFolders
         ? vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, functionDefinition.filename).fsPath
@@ -124,6 +129,7 @@ async function selectAndSendToCopilot(functionDefinition: FunctionDefinition) {
 
     // Attach the selection to Copilot Chat
     vscode.commands.executeCommand("github.copilot.chat.attachSelection");
+    vscode.commands.executeCommand("aichat.insertselectionintochat");
 }
 
 function getSelectionFromFunctionDefinition(doc: vscode.TextDocument, functionDefinition: FunctionDefinition): vscode.Selection {
