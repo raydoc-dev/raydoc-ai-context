@@ -24,7 +24,13 @@ export async function gatherContext(
     const runtimePath = '';
     const packages = getPackageDependencies(doc.languageId);
     const functionDefn = await getFunctionDefinition(doc, position);
-    const referencedFunctions: FunctionDefinition[] = [];
+    var referencedFunctions: FunctionDefinition[] = [];
+
+    if (functionDefn) {
+        referencedFunctions = await getReferencesForFunction(doc, functionDefn, false);
+    }
+
+    console.log(referencedFunctions);
 
     var typeDefns: FunctionDefinition[] = [];
     if (functionDefn) {
