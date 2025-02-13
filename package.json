@@ -3,7 +3,7 @@
     "displayName": "Raydoc AI Context",
     "publisher": "raydoc",
     "description": "No more AI hallucinations. Just real answers from your real code",
-    "version": "0.1.10",
+    "version": "0.1.11",
     "icon": "icon.png",
     "engines": {
         "vscode": "^1.80.0"
@@ -49,6 +49,11 @@
             "type": "object",
             "title": "Raydoc Settings",
             "properties": {
+                "raydoc-context.use-cursor": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Use Cursor when sending context to the LLM"
+                },
                 "raydoc-context.ignoreTypePaths": {
                     "type": "array",
                     "items": {

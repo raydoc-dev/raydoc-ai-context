@@ -111,7 +111,7 @@ export function contextToStringLlm(context: RaydocContext): string {
         }
     }
 
-    return "";
+    return output;
 }
 
 function fileTreeToString(node: Node, indent: string): string {

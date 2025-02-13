@@ -110,6 +110,9 @@ async function sendContextToLlmCommandHandler() {
 }
 
 async function selectAndSendToLlm(functionDefinition: FunctionDefinition) {
+    const config = vscode.workspace.getConfiguration('raydoc');
+    const useCursor = config.get('use-cursor');
+
     // Get the file URI from the function definition (relative to the workspace root)
     const fullFilePath = vscode.workspace.workspaceFolders
         ? vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, functionDefinition.filename).fsPath
@@ -127,9 +130,12 @@ async function selectAndSendToLlm(functionDefinition: FunctionDefinition) {
     // Apply the selection
     editor.selection = functionRange;
 
-    // Attach the selection to Copilot Chat
-    vscode.commands.executeCommand("github.copilot.chat.attachSelection");
-    vscode.commands.executeCommand("aichat.insertselectionintochat");
+    // Attach the selection to the LLM
+    if (!useCursor) {
+        vscode.commands.executeCommand("github.copilot.chat.attachSelection");
+    } else {
+        vscode.commands.executeCommand("aichat.insertselectionintochat");
+    }
 }
 
 function getSelectionFromFunctionDefinition(doc: vscode.TextDocument, functionDefinition: FunctionDefinition): vscode.Selection {
