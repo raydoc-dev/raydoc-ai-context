@@ -189,7 +189,7 @@ function isInWorkspace(fsPath: string): boolean {
 
 function isIgnoreLocation(fsPath: string): boolean {
     const config = vscode.workspace.getConfiguration("raydoc-context");
-    const standardLibPaths: string[] = config.get("ignoreTypePaths", []);
+    const ignoreTypePaths: string[] = config.get("ignoreTypePaths", []);
 
-    return standardLibPaths.some(path => fsPath.includes(path));
+    return ignoreTypePaths.some(path => fsPath.includes(path));
 }
