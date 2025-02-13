@@ -6,7 +6,7 @@ import * as util from 'util';
 import { getPackageDependencies } from './packages';
 import { FunctionDefinition, RaydocContext } from "./types";
 import { generateFileTree } from './fileTree';
-import { getTypeDefinitionsForFunction } from './getTypes';
+import { getReferencesForFunction } from './getReferences';
 import { getFunctionDefinition } from './functions';
 
 export async function gatherContext(
@@ -28,7 +28,7 @@ export async function gatherContext(
 
     var typeDefns: FunctionDefinition[] = [];
     if (functionDefn) {
-        typeDefns = await getTypeDefinitionsForFunction(doc, functionDefn);
+        typeDefns = await getReferencesForFunction(doc, functionDefn);
     } else {
         return undefined;
     }

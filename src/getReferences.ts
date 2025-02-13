@@ -3,15 +3,16 @@ import * as vscode from 'vscode';
 import { FunctionDefinition } from './types';
 import { getFunctionDefinition } from './functions';
 
-export async function getTypeDefinitionsForFunction(
+export async function getReferencesForFunction(
     document: vscode.TextDocument,
     functionDefinition: FunctionDefinition,
+    returnTypes = true,
 ): Promise<FunctionDefinition[]> {
     const functionTypeDefinitions = new Map<String, FunctionDefinition>();
 
     // Get the types for each line in the function
     for (let i = functionDefinition.startLine; i <= functionDefinition.endLine; i++) {
-        const lineTypeDefinitions = await getTypeDefinitionsForLine(document, new vscode.Position(i, 0));
+        const lineTypeDefinitions = await getTypeDefinitionsForLine(document, new vscode.Position(i, 0), returnTypes);
         for (const typeDef of lineTypeDefinitions) {
             const key = `${typeDef.functionName}-${typeDef.filename}`;
             if (!functionTypeDefinitions.has(key)) {
@@ -26,6 +27,7 @@ export async function getTypeDefinitionsForFunction(
 async function getTypeDefinitionsForLine(
     document: vscode.TextDocument,
     position: vscode.Position,
+    returnTypes: boolean,
 ): Promise<FunctionDefinition[]> {
     const typeDefinitions = new Map<string, FunctionDefinition>();
     const line = document.lineAt(position.line).text;
@@ -50,7 +52,7 @@ async function getTypeDefinitionsForLine(
     }
 
     for (const pos of positions) {
-        const typeInfo = await getTypeDefinitionsForPosition(document, pos);
+        const typeInfo = await getTypeDefinitionsForPosition(document, pos, returnTypes);
         if (typeInfo) {
             for (const typeDef of typeInfo) {
                 const key = `${typeDef.functionName}-${typeDef.filename}`;
@@ -66,6 +68,7 @@ async function getTypeDefinitionsForLine(
 async function getTypeDefinitionsForPosition(
     document: vscode.TextDocument,
     position: vscode.Position,
+    returnTypes: boolean,
 ): Promise<FunctionDefinition[]> {
     const typesDefinitions: FunctionDefinition[] = [];
     
@@ -77,7 +80,7 @@ async function getTypeDefinitionsForPosition(
     );
 
     if (typeLocations && typeLocations.length > 0) {
-        typesDefinitions.push(...await getTypeDefinitionFromLocations(typeLocations));
+        typesDefinitions.push(...await getTypeDefinitionFromLocations(typeLocations, returnTypes));
 
         // If we found valid types, return them
         if (typesDefinitions.length > 0) {
@@ -93,7 +96,7 @@ async function getTypeDefinitionsForPosition(
     );
 
     if (typeLocations && typeLocations.length > 0) {
-        typesDefinitions.push(...await getTypeDefinitionFromLocations(typeLocations));
+        typesDefinitions.push(...await getTypeDefinitionFromLocations(typeLocations, returnTypes));
     }
 
     return typesDefinitions;
@@ -101,6 +104,7 @@ async function getTypeDefinitionsForPosition(
 
 async function getTypeDefinitionFromLocations(
     locations: vscode.Location[],
+    returnTypes: boolean
 ): Promise<FunctionDefinition[]> {
     const typeDefinitions: FunctionDefinition[] = [];
     for (const location of locations) {
@@ -110,7 +114,7 @@ async function getTypeDefinitionFromLocations(
 
         const doc = await vscode.workspace.openTextDocument(location.uri);
 
-        const functionDefinition = await getFunctionDefinition(doc, location.range.start, true);
+        const functionDefinition = await getFunctionDefinition(doc, location.range.start, returnTypes);
 
         if (!functionDefinition) {
             continue;
