@@ -6,7 +6,7 @@ import { FunctionDefinition } from './types';
 export async function getFunctionDefinition(
     doc: vscode.TextDocument,
     position: vscode.Position,
-    includeClasses = false
+    findTypes = false
 ): Promise<FunctionDefinition | undefined> {
     // 1) Get all the symbols in the document
     let symbols = await vscode.commands.executeCommand<DocumentSymbol[]>(
@@ -23,7 +23,7 @@ export async function getFunctionDefinition(
     symbols = flattenDocumentSymbols(symbols);
 
     // 2) Find the largest function symbol that contains the cursor position
-    const functionSymbol = getLargestFunctionSymbolForPosition(symbols, position, includeClasses);
+    const functionSymbol = getLargestFunctionSymbolForPosition(doc, symbols, position, findTypes);
 
     // If we didn't find a function symbol, we can't proceed
     if (!functionSymbol) {
@@ -48,18 +48,39 @@ function flattenDocumentSymbols(symbols: DocumentSymbol[]): DocumentSymbol[] {
 }
 
 function getLargestFunctionSymbolForPosition(
+    doc: vscode.TextDocument,
     symbols: DocumentSymbol[],
     position: vscode.Position,
-    includeClasses: boolean,
+    findTypes: boolean,
 ): DocumentSymbol | undefined {
     let largestFunctionSymbol: DocumentSymbol | undefined;
 
     for (const symbol of symbols) {
+        let isFunction = false;
+        let isType = false;
+
+        switch (doc.languageId) {
+            case 'python':
+                ({ isFunction, isType } = isFunctionAndTypePython(symbol));
+                break;
+            case 'typescript':
+                ({ isFunction, isType } = isFunctionAndTypeTypescript(symbol));
+                break;
+            case 'javascript':
+                ({ isFunction, isType } = isFunctionAndTypeJavascript(symbol));
+                break;
+            case 'go':
+                ({ isFunction, isType } = isFunctionAndTypeGo(symbol));
+                break;
+            case 'cpp':
+                ({ isFunction, isType } = isFunctionAndTypeCpp(symbol));
+                break;
+            default:
+                break;
+        }
         if (
-            (symbol.kind === SymbolKind.Function ||
-                symbol.kind === SymbolKind.Method ||
-                symbol.kind === SymbolKind.Constructor ||
-                (symbol.kind === SymbolKind.Class && includeClasses)) &&
+            ((isFunction && !findTypes) ||
+                (isType && findTypes)) &&
             symbol.range.contains(position)
         ) {
             if (!largestFunctionSymbol || isLargerRange(symbol.range, largestFunctionSymbol.range)) {
@@ -69,6 +90,36 @@ function getLargestFunctionSymbolForPosition(
     }
 
     return largestFunctionSymbol;
+}
+
+function isFunctionAndTypePython(symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
+    const isFunction = symbol.kind === SymbolKind.Function || symbol.kind === SymbolKind.Method || symbol.kind === SymbolKind.Constructor;
+    const isType = symbol.kind === SymbolKind.Class || symbol.kind === SymbolKind.Interface;
+    return { isFunction, isType };
+}
+
+function isFunctionAndTypeTypescript(symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
+    const isFunction = symbol.kind === SymbolKind.Function || symbol.kind === SymbolKind.Method || symbol.kind === SymbolKind.Constructor;
+    const isType = symbol.kind === SymbolKind.Class || symbol.kind === SymbolKind.Interface || symbol.kind === SymbolKind.Variable;
+    return { isFunction, isType };
+}
+
+function isFunctionAndTypeJavascript(symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
+    const isFunction = symbol.kind === SymbolKind.Function || symbol.kind === SymbolKind.Method || symbol.kind === SymbolKind.Constructor;
+    const isType = symbol.kind === SymbolKind.Class || symbol.kind === SymbolKind.Interface || symbol.kind === SymbolKind.Variable;
+    return { isFunction, isType };
+}
+
+function isFunctionAndTypeGo(symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
+    const isFunction = symbol.kind === SymbolKind.Function || symbol.kind === SymbolKind.Method || symbol.kind === SymbolKind.Constructor;
+    const isType = symbol.kind === SymbolKind.Struct || symbol.kind === SymbolKind.Interface;
+    return { isFunction, isType };
+}
+
+function isFunctionAndTypeCpp(symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
+    const isFunction = symbol.kind === SymbolKind.Function || symbol.kind === SymbolKind.Method || symbol.kind === SymbolKind.Constructor;
+    const isType = symbol.kind === SymbolKind.Class || symbol.kind === SymbolKind.Interface || symbol.kind === SymbolKind.Struct;
+    return { isFunction, isType };
 }
 
 // Helper function to determine if range1 is larger than range2
@@ -100,6 +151,14 @@ function functionDefinitionByLanguage(
     switch (doc.languageId) {
         case 'python':
             return getFunctionDefinitionPython(doc, functionSymbol);
+        case 'typescript':
+            return getFunctionDefinitionTypescript(doc, functionSymbol);
+        case 'javascript':
+            return getFunctionDefinitionJavascript(doc, functionSymbol);
+        case 'go':
+            return getFunctionDefinitionGo(doc, functionSymbol);
+        case 'cpp':
+            return getFunctionDefinitionCpp(doc, functionSymbol);
         default:
             return undefined;
     }
@@ -145,5 +204,57 @@ function getFunctionDefinitionPython(
         functionSymbol: symbol,
         startLine,
         endLine,
+    };
+}
+
+function getFunctionDefinitionTypescript(
+    doc: vscode.TextDocument,
+    symbol: DocumentSymbol
+): FunctionDefinition {
+    return {
+        filename: doc.fileName,
+        functionText: doc.getText(symbol.range),
+        functionSymbol: symbol,
+        startLine: symbol.range.start.line,
+        endLine: symbol.range.end.line,
+    };
+}
+
+function getFunctionDefinitionJavascript(
+    doc: vscode.TextDocument,
+    symbol: DocumentSymbol
+): FunctionDefinition {
+    return {
+        filename: doc.fileName,
+        functionText: doc.getText(symbol.range),
+        functionSymbol: symbol,
+        startLine: symbol.range.start.line,
+        endLine: symbol.range.end.line,
+    };
+}
+
+function getFunctionDefinitionGo(
+    doc: vscode.TextDocument,
+    symbol: DocumentSymbol
+): FunctionDefinition {
+    return {
+        filename: doc.fileName,
+        functionText: doc.getText(symbol.range),
+        functionSymbol: symbol,
+        startLine: symbol.range.start.line,
+        endLine: symbol.range.end.line,
+    };
+}
+
+function getFunctionDefinitionCpp(
+    doc: vscode.TextDocument,
+    symbol: DocumentSymbol
+): FunctionDefinition {
+    return {
+        filename: doc.fileName,
+        functionText: doc.getText(symbol.range),
+        functionSymbol: symbol,
+        startLine: symbol.range.start.line,
+        endLine: symbol.range.end.line,
     };
 }

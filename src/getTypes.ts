@@ -4,7 +4,7 @@ import * as path from 'path';
 import { FunctionDefinition, TypeDefinition } from './types';
 import { getFunctionDefinition } from './functions';
 
-export async function getTypesForFunction(
+export async function getTypeDefinitionsForFunction(
     document: vscode.TextDocument,
     functionDefinition: FunctionDefinition,
 ): Promise<TypeDefinition[]> {
@@ -12,7 +12,7 @@ export async function getTypesForFunction(
 
     // Get the types for each line in the function
     for (let i = functionDefinition.startLine; i <= functionDefinition.endLine; i++) {
-        const lineTypeDefinitions = await getTypesForLine(document, new vscode.Position(i, 0));
+        const lineTypeDefinitions = await getTypeDefinitionsForLine(document, new vscode.Position(i, 0));
         for (const typeDef of lineTypeDefinitions) {
             const key = `${typeDef.typeName}-${typeDef.filename}`;
             if (!functionTypeDefinitions.has(key)) {
@@ -24,7 +24,7 @@ export async function getTypesForFunction(
     return Array.from(functionTypeDefinitions.values());
 }
 
-async function getTypesForLine(
+export async function getTypeDefinitionsForLine(
     document: vscode.TextDocument,
     position: vscode.Position,
 ): Promise<TypeDefinition[]> {
@@ -51,7 +51,7 @@ async function getTypesForLine(
     }
 
     for (const pos of positions) {
-        const typeInfo = await getTypesForPosition(document, pos);
+        const typeInfo = await getTypeDefinitionsForPosition(document, pos);
         if (typeInfo) {
             for (const typeDef of typeInfo) {
                 const key = `${typeDef.typeName}-${typeDef.filename}`;
@@ -64,7 +64,7 @@ async function getTypesForLine(
     return Array.from(typeDefinitions.values());
 }
 
-async function getTypesForPosition(
+export async function getTypeDefinitionsForPosition(
     document: vscode.TextDocument,
     position: vscode.Position,
 ): Promise<TypeDefinition[]> {
@@ -117,7 +117,31 @@ async function getTypeDefinitionFromLocations(
             continue;
         }
 
-        const typeName = extractTypeName(functionDefinition.functionText);
+        let typeName = "";
+
+        switch (doc.languageId) {
+            case 'typescript':
+                typeName = extractTypeNameTypescript(functionDefinition.functionText);
+                break;
+            case 'javascript':
+                typeName = extractTypeNameJavascript(functionDefinition.functionText);
+                break;
+            case 'python':
+                typeName = extractTypeNamePython(functionDefinition.functionText);
+                break;
+            case 'go':
+                typeName = extractTypeNameGo(functionDefinition.functionText);
+                break;
+            case 'cpp':
+                typeName = extractTypeNameCpp(functionDefinition.functionText);
+                break;
+            default:
+                typeName = "unknown";
+        }
+
+        if (typeName === "unknown") {
+            continue;
+        }
 
         typeDefinitions.push({
             typeName,
@@ -129,8 +153,28 @@ async function getTypeDefinitionFromLocations(
     return typeDefinitions;
 }
 
-function extractTypeName(typeText: string): string {
-    const match = typeText.match(/(interface|class|type|enum)\s+(\w+)/);
+function extractTypeNameTypescript(typescriptTypeText: string): string {
+    const match = typescriptTypeText.match(/(interface|class|type|enum)\s+(\w+)/);
+    return match ? match[2] : "unknown";
+}
+
+function extractTypeNameJavascript(javascriptTypeText: string): string {
+    const match = javascriptTypeText.match(/(class)\s+(\w+)/);
+    return match ? match[2] : "unknown";
+}
+
+function extractTypeNamePython(pythonTypeText: string): string {
+    const match = pythonTypeText.match(/(class)\s+(\w+)/);
+    return match ? match[2] : "unknown";
+}
+
+function extractTypeNameGo(goTypeText: string): string {
+    const match = goTypeText.match(/(?:type\s+)?(\w+)\s+struct\b/);
+    return match ? match[1] : "unknown";
+}
+
+function extractTypeNameCpp(cppTypeText: string): string {
+    const match = cppTypeText.match(/(class|struct)\s+(\w+)/);
     return match ? match[2] : "unknown";
 }
 
