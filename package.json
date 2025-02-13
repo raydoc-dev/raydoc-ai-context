@@ -3,7 +3,7 @@
     "displayName": "Raydoc AI Context",
     "publisher": "raydoc",
     "description": "Context for an LLM with a single command",
-    "version": "0.1.7",
+    "version": "0.1.8",
     "icon": "icon.png",
     "engines": {
         "vscode": "^1.80.0"
@@ -23,20 +23,8 @@
     "contributes": {
         "commands": [
             {
-                "command": "raydoc-context.copyErrorContextAtCursor",
-                "title": "Copy Error Context at Cursor"
-            },
-            {
-                "command": "raydoc-context.copyLineContextAtCursor",
-                "title": "Copy Line Context at Cursor"
-            },
-            {
                 "command": "raydoc-context.copyContextAtCursor",
                 "title": "Copy Context at Cursor"
-            },
-            {
-                "command": "raydoc-context.inspectTypesAtCursor",
-                "title": "Inspect Types at Cursor"
             }
         ],
         "keybindings": [
@@ -51,6 +39,14 @@
             "type": "object",
             "title": "Raydoc Settings",
             "properties": {
+                "raydoc-context.ignoreTypePaths": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": ["node_modules", "stdlib", "python3", "toml.hpp"],
+                    "description": "Paths that should ignored when retrieving types."
+                },
                 "raydoc-context.output-config.environment": {
                     "type": "boolean",
                     "default": true,

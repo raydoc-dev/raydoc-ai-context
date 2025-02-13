@@ -1,5 +1,5 @@
-import { Node, RaydocContext } from "./types";
 import * as vscode from 'vscode';
+import { Node, RaydocContext } from "./types";
 
 export function contextToString(context: RaydocContext): string {
     const config = vscode.workspace.getConfiguration('raydoc-context.output-config');
@@ -29,7 +29,9 @@ export function contextToString(context: RaydocContext): string {
         }
     }
 
-    output += "=== Context ===\n";
+    if (context.filepath || context.line) {
+        output += "=== Context ===\n";
+    }
 
     if (context.filepath) {
         output += `File: ${context.filepath}\n`;
@@ -63,7 +65,7 @@ export function contextToString(context: RaydocContext): string {
         output += context.functionDefn.functionText;
     }
 
-    if (includeTypeDefns && context.typeDefns) {
+    if (includeTypeDefns && context.typeDefns && context.typeDefns.length > 0) {
         output += "\n\n=== Type Definitions ===\n";
         for (const typeDefn of context.typeDefns) {
             output += `--- Custom Type: "${typeDefn.typeName}" (${typeDefn.filename}) ---\n`;
