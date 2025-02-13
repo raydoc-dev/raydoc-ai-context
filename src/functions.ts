@@ -196,7 +196,7 @@ function getFunctionDefinitionPython(
 
     // Create the function definition object
     const functionText = lines.slice(startLine, endLine + 1).join('\n').trim();
-    const filename = doc.fileName;
+    const filename = vscode.workspace.asRelativePath(doc.fileName);
     const functionName = symbol.name;
 
     return {
@@ -215,7 +215,7 @@ function getFunctionDefinitionTypescript(
 ): FunctionDefinition {
     return {
         functionName: symbol.name,
-        filename: doc.fileName,
+        filename: vscode.workspace.asRelativePath(doc.fileName),
         functionText: doc.getText(symbol.range),
         functionSymbol: symbol,
         startLine: symbol.range.start.line,
@@ -229,7 +229,7 @@ function getFunctionDefinitionJavascript(
 ): FunctionDefinition {
     return {
         functionName: symbol.name,
-        filename: doc.fileName,
+        filename: vscode.workspace.asRelativePath(doc.fileName),
         functionText: doc.getText(symbol.range),
         functionSymbol: symbol,
         startLine: symbol.range.start.line,
@@ -243,7 +243,7 @@ function getFunctionDefinitionGo(
 ): FunctionDefinition {
     return {
         functionName: symbol.name,
-        filename: doc.fileName,
+        filename: vscode.workspace.asRelativePath(doc.fileName),
         functionText: doc.getText(symbol.range),
         functionSymbol: symbol,
         startLine: symbol.range.start.line,
@@ -257,7 +257,7 @@ function getFunctionDefinitionCpp(
 ): FunctionDefinition {
     return {
         functionName: symbol.name,
-        filename: doc.fileName,
+        filename: vscode.workspace.asRelativePath(doc.fileName),
         functionText: doc.getText(symbol.range),
         functionSymbol: symbol,
         startLine: symbol.range.start.line,

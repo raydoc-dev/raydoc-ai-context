@@ -84,7 +84,7 @@
                 },
                 "raydoc-context.output-config.referenced-functions": {
                     "type": "boolean",
-                    "default": false,
+                    "default": true,
                     "description": "Include all referenced functions in the copied context"
                 }
             }

@@ -30,8 +30,6 @@ export async function gatherContext(
         referencedFunctions = await getReferencesForFunction(doc, functionDefn, false);
     }
 
-    console.log(referencedFunctions);
-
     var typeDefns: FunctionDefinition[] = [];
     if (functionDefn) {
         typeDefns = await getReferencesForFunction(doc, functionDefn);
