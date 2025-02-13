@@ -3,7 +3,7 @@
     "displayName": "Raydoc AI Context",
     "publisher": "raydoc",
     "description": "Context for an LLM with a single command",
-    "version": "0.1.8",
+    "version": "0.1.9",
     "icon": "icon.png",
     "engines": {
         "vscode": "^1.80.0"
@@ -84,7 +84,7 @@
                 },
                 "raydoc-context.output-config.referenced-functions": {
                     "type": "boolean",
-                    "default": false,
+                    "default": true,
                     "description": "Include all referenced functions in the copied context"
                 }
             }

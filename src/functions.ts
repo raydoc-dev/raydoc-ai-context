@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { DocumentSymbol, SymbolKind } from 'vscode';
-import { symbolContainingRange } from './symbols';
 import { FunctionDefinition } from './types';
 
 export async function getFunctionDefinition(
@@ -168,6 +167,7 @@ function getFunctionDefinitionPython(
     doc: vscode.TextDocument,
     symbol: DocumentSymbol
 ): FunctionDefinition {
+    console.log(symbol);
     const fileText = doc.getText();
     const lines = fileText.split('\n');
 
@@ -196,9 +196,11 @@ function getFunctionDefinitionPython(
 
     // Create the function definition object
     const functionText = lines.slice(startLine, endLine + 1).join('\n').trim();
-    const filename = doc.fileName;
+    const filename = vscode.workspace.asRelativePath(doc.fileName);
+    const functionName = symbol.name;
 
     return {
+        functionName,
         filename,
         functionText,
         functionSymbol: symbol,
@@ -212,7 +214,8 @@ function getFunctionDefinitionTypescript(
     symbol: DocumentSymbol
 ): FunctionDefinition {
     return {
-        filename: doc.fileName,
+        functionName: symbol.name,
+        filename: vscode.workspace.asRelativePath(doc.fileName),
         functionText: doc.getText(symbol.range),
         functionSymbol: symbol,
         startLine: symbol.range.start.line,
@@ -225,7 +228,8 @@ function getFunctionDefinitionJavascript(
     symbol: DocumentSymbol
 ): FunctionDefinition {
     return {
-        filename: doc.fileName,
+        functionName: symbol.name,
+        filename: vscode.workspace.asRelativePath(doc.fileName),
         functionText: doc.getText(symbol.range),
         functionSymbol: symbol,
         startLine: symbol.range.start.line,
@@ -238,7 +242,8 @@ function getFunctionDefinitionGo(
     symbol: DocumentSymbol
 ): FunctionDefinition {
     return {
-        filename: doc.fileName,
+        functionName: symbol.name,
+        filename: vscode.workspace.asRelativePath(doc.fileName),
         functionText: doc.getText(symbol.range),
         functionSymbol: symbol,
         startLine: symbol.range.start.line,
@@ -251,7 +256,8 @@ function getFunctionDefinitionCpp(
     symbol: DocumentSymbol
 ): FunctionDefinition {
     return {
-        filename: doc.fileName,
+        functionName: symbol.name,
+        filename: vscode.workspace.asRelativePath(doc.fileName),
         functionText: doc.getText(symbol.range),
         functionSymbol: symbol,
         startLine: symbol.range.start.line,
