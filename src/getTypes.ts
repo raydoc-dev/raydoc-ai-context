@@ -105,7 +105,7 @@ async function getTypeDefinitionFromLocations(
 ): Promise<TypeDefinition[]> {
     const typeDefinitions: TypeDefinition[] = [];
     for (const location of locations) {
-        if (!location.uri || !isInWorkspace(location.uri.fsPath) || isStandardLibLocation(location.uri.fsPath)) {
+        if (!location.uri || !isInWorkspace(location.uri.fsPath) || isIgnoreLocation(location.uri.fsPath)) {
             continue;
         }
 
@@ -187,9 +187,9 @@ function isInWorkspace(fsPath: string): boolean {
     return workspaceFolders.some(folder => fsPath.startsWith(folder.uri.fsPath));
 }
 
-function isStandardLibLocation(fsPath: string): boolean {
-    return fsPath.includes('node_modules') ||
-           fsPath.includes('stdlib') ||
-           fsPath.includes('python3') ||
-           fsPath.includes('toml.hpp');
+function isIgnoreLocation(fsPath: string): boolean {
+    const config = vscode.workspace.getConfiguration("raydoc-context");
+    const standardLibPaths: string[] = config.get("ignoreTypePaths", []);
+
+    return standardLibPaths.some(path => fsPath.includes(path));
 }
