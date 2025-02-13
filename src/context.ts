@@ -1,64 +1,64 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as cp from 'child_process';
+import * as util from 'util';
 
 import { getPackageDependencies } from './packages';
 import { FunctionDefinition, RaydocContext, TypeDefinition } from "./types";
-import { gatherTypeDefinitionsForFunction } from './getTypes';
 import { generateFileTree } from './fileTree';
+import { getTypesForFunction } from './getTypes';
+import { getFunctionDefinition } from './functions';
 
 export async function gatherContext(
     doc: vscode.TextDocument,
     position: vscode.Position,
     diag: vscode.Diagnostic | undefined
 ): Promise<RaydocContext | undefined> {
-    // const filepath = getFilePath(doc);
-    // const line = position.line;
-    // const immediateContextLines = await getImmediateContextLines(doc, position);
-    // const errorMessage = diag?.message || undefined;
-    // const languageId = doc.languageId;
-    // const runtime = process.version;
-    // const runtimeVersion = getLanguageVersion(doc.languageId);
-    // const runtimePath = '';
-    // const packages = getPackageDependencies(doc.languageId);
-    // // const functionDefn = await getEnclosingFunction(doc, position);
-    // const referencedFunctions: FunctionDefinition[] = [];
+    const filepath = getFilePath(doc);
+    const line = position.line;
+    const immediateContextLines = await getImmediateContextLines(doc, position);
+    const errorMessage = diag?.message || undefined;
+    const languageId = doc.languageId;
+    const runtime = process.version;
+    const runtimeVersion = await getLanguageVersion(doc.languageId);
+    const runtimePath = '';
+    const packages = getPackageDependencies(doc.languageId);
+    const functionDefn = await getFunctionDefinition(doc, position);
+    const referencedFunctions: FunctionDefinition[] = [];
 
-    // var typeDefns: TypeDefinition[] = [];
-    // if (functionDefn) {
-    //     typeDefns = await gatherTypeDefinitionsForFunction(doc, functionDefn, languageId);
-    // } else {
-    //     return undefined;
-    // }
+    var typeDefns: TypeDefinition[] = [];
+    if (functionDefn) {
+        typeDefns = await getTypesForFunction(doc, functionDefn);
+    } else {
+        return undefined;
+    }
 
-    // const usedFiles = new Set<string>();
-    // usedFiles.add(filepath);
+    const usedFiles = new Set<string>();
+    usedFiles.add(filepath);
 
-    // for (const typeDefn of typeDefns) {
-    //     usedFiles.add(typeDefn.filename);
-    // }
+    for (const typeDefn of typeDefns) {
+        usedFiles.add(typeDefn.filename);
+    }
 
-    // const fileTree = await generateFileTree(usedFiles);
+    const fileTree = await generateFileTree(usedFiles);
 
-    // const context: RaydocContext = {
-    //     filepath,
-    //     line,
-    //     immediateContextLines,
-    //     errorMessage,
-    //     languageId,
-    //     runtime,
-    //     runtimeVersion,
-    //     runtimePath,
-    //     packages,
-    //     functionDefn,
-    //     referencedFunctions,
-    //     typeDefns,
-    //     fileTree
-    // };
+    const context: RaydocContext = {
+        filepath,
+        line,
+        immediateContextLines,
+        errorMessage,
+        languageId,
+        runtime,
+        runtimeVersion,
+        runtimePath,
+        packages,
+        functionDefn,
+        referencedFunctions,
+        typeDefns,
+        fileTree
+    };
 
-    // return context;
-
-    return undefined;
+    return context;
 }
 
 function getFilePath(doc: vscode.TextDocument): string {
@@ -75,11 +75,11 @@ function getFilePath(doc: vscode.TextDocument): string {
 /**
  * Attempt to get an external language version (Python, Go, etc.). Otherwise return undefined.
  */
-export function getLanguageVersion(languageId: string): string | undefined {
+export async function getLanguageVersion(languageId: string): Promise<string | undefined> {
     let cmd: string | undefined;
     switch (languageId) {
         case 'python':
-            cmd = 'python --version';
+            return await getPythonVersion();
             break;
         case 'go':
             cmd = 'go version';
@@ -105,7 +105,6 @@ export function getLanguageVersion(languageId: string): string | undefined {
     }
 }
 
-
 export async function getImmediateContextLines(
     doc: vscode.TextDocument,
     position: vscode.Position
@@ -130,4 +129,45 @@ export async function getImmediateContextLines(
 
     // Join all context lines with a newline separator and return
     return contextLines.join('\n');
+}
+
+const execPromise = util.promisify(cp.exec);
+
+async function getPythonVersion(): Promise<string | undefined> {
+    // Get the Python extension
+    const pythonExtension = vscode.extensions.getExtension('ms-python.python');
+
+    if (!pythonExtension) {
+        return undefined;
+    }
+
+    // Activate the Python extension if not already activated
+    if (!pythonExtension.isActive) {
+        await pythonExtension.activate();
+    }
+
+    // Access the Python extension API
+    const pythonAPI = pythonExtension.exports;
+
+    // Get the active interpreter (path to Python executable)
+    const activeEnv = await pythonAPI.environments.getActiveEnvironmentPath();
+    
+    if (!activeEnv || !activeEnv.path) {
+        return undefined;
+    }
+
+    const interpreterPath = activeEnv.path; // Extract the actual executable path
+
+    try {
+        // Run "python --version" using Node.js child_process
+        const { stdout, stderr } = await execPromise(`"${interpreterPath}" --version`);
+
+        const version = stdout.trim() || stderr.trim();
+        return version;
+    } catch (error) {
+        // Ensure 'error' is an instance of Error before accessing 'message'
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        vscode.window.showErrorMessage(`Failed to get Python version: ${errorMessage}`);
+        return undefined;
+    }
 }

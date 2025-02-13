@@ -5,7 +5,8 @@ import { FunctionDefinition } from './types';
 
 export async function getFunctionDefinition(
     doc: vscode.TextDocument,
-    position: vscode.Position
+    position: vscode.Position,
+    includeClasses = false
 ): Promise<FunctionDefinition | undefined> {
     // 1) Get all the symbols in the document
     let symbols = await vscode.commands.executeCommand<DocumentSymbol[]>(
@@ -22,7 +23,7 @@ export async function getFunctionDefinition(
     symbols = flattenDocumentSymbols(symbols);
 
     // 2) Find the largest function symbol that contains the cursor position
-    const functionSymbol = getLargestFunctionSymbolForPosition(symbols, position);
+    const functionSymbol = getLargestFunctionSymbolForPosition(symbols, position, includeClasses);
 
     // If we didn't find a function symbol, we can't proceed
     if (!functionSymbol) {
@@ -48,7 +49,8 @@ function flattenDocumentSymbols(symbols: DocumentSymbol[]): DocumentSymbol[] {
 
 function getLargestFunctionSymbolForPosition(
     symbols: DocumentSymbol[],
-    position: vscode.Position
+    position: vscode.Position,
+    includeClasses: boolean,
 ): DocumentSymbol | undefined {
     let largestFunctionSymbol: DocumentSymbol | undefined;
 
@@ -56,7 +58,8 @@ function getLargestFunctionSymbolForPosition(
         if (
             (symbol.kind === SymbolKind.Function ||
                 symbol.kind === SymbolKind.Method ||
-                symbol.kind === SymbolKind.Constructor) &&
+                symbol.kind === SymbolKind.Constructor ||
+                (symbol.kind === SymbolKind.Class && includeClasses)) &&
             symbol.range.contains(position)
         ) {
             if (!largestFunctionSymbol || isLargerRange(symbol.range, largestFunctionSymbol.range)) {
@@ -127,6 +130,7 @@ function getFunctionDefinitionPython(
 
         // If we're outside the block indentation and it's not a blank line, we've hit the end of the current type
         if (currentIndentation <= startIndentation && endLine > startLine) {
+            endLine--;
             break;
         }
     }
@@ -142,37 +146,4 @@ function getFunctionDefinitionPython(
         startLine,
         endLine,
     };
-}
-
-// TODO: Delete this function after refactoring getTypes
-export function extractParameterPositions(
-    doc: vscode.TextDocument,
-    functionDefintion: FunctionDefinition,
-): vscode.Position[] {
-    const startOffset = functionDefintion.functionText.indexOf('(');
-    const endOffset = functionDefintion.functionText.indexOf(')');
-
-    if (startOffset === -1 || endOffset === -1 || startOffset > endOffset) {
-        console.log("No valid parameter list found.");
-        return [];
-    }
-
-    // Extract parameter list text
-    const paramListText = functionDefintion.functionText.substring(startOffset + 1, endOffset);
-
-    // Split parameters and track positions
-    let currentOffset = startOffset + 1; // Offset relative to functionText
-    const paramPositions: vscode.Position[] = [];
-
-    paramListText.split(',').map(param => param.trim()).forEach(param => {
-        if (param.length === 0) { return; }
-
-        const paramOffset = functionDefintion.functionText.indexOf(param, currentOffset);
-        const absoluteOffset = doc.offsetAt(functionDefintion.functionSymbol.range.start) + paramOffset;
-        paramPositions.push(doc.positionAt(absoluteOffset));
-
-        currentOffset = paramOffset + param.length;
-    });
-
-    return paramPositions;
 }

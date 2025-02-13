@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import { contextToString } from './toString';
 import { gatherContext } from './context';
-import { getTypeInfo, getTypesForLine } from './getTypes';
 import { getFunctionDefinition } from './functions';
+import { getTypesForFunction } from './getTypes';
 
 export function activate(context: vscode.ExtensionContext) {
     // 1) Register a Code Action Provider for errors:
@@ -169,9 +169,15 @@ async function inspectTypesAtCursorCommandHandler() {
 
     const functionDefinition = await getFunctionDefinition(doc, position);
 
-    console.log(functionDefinition);
+    // If we didn't find a function definition, show an error message
+    if (!functionDefinition) {
+        vscode.window.showErrorMessage('No function definition found for the current cursor position.');
+        return;
+    }
 
-    // const type = await getTypesForLine(doc, position);
+    const typeDefinitions = await getTypesForFunction(doc, functionDefinition);
+
+    console.log(typeDefinitions);
 }
 
 /**
