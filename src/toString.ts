@@ -82,7 +82,7 @@ export function contextToString(context: RaydocContext): string {
     if (includeReferencedFunctions && context.referencedFunctions) {
         output += "\n=== Referenced Functions ===\n";
         for (const refFunc of context.referencedFunctions) {
-            output += `--- Custom Type: "${refFunc.functionName}" (${refFunc.filename}) ---\n`;
+            output += `--- Referenced Function: "${refFunc.functionName}" (${refFunc.filename}) ---\n`;
             output += refFunc.functionText;
             output += '\n\n';
         }
