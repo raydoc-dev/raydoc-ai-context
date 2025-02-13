@@ -3,10 +3,10 @@
     "displayName": "Raydoc AI Context",
     "publisher": "raydoc",
     "description": "Context for an LLM with a single command",
-    "version": "0.1.6",
+    "version": "0.1.7",
     "icon": "icon.png",
     "engines": {
-        "vscode": "^1.97.0"
+        "vscode": "^1.80.0"
     },
     "categories": [
         "Other"
@@ -33,6 +33,10 @@
             {
                 "command": "raydoc-context.copyContextAtCursor",
                 "title": "Copy Context at Cursor"
+            },
+            {
+                "command": "raydoc-context.inspectTypesAtCursor",
+                "title": "Inspect Types at Cursor"
             }
         ],
         "keybindings": [
@@ -99,7 +103,7 @@
         "test": "vscode-test"
     },
     "devDependencies": {
-        "@types/vscode": "^1.97.0",
+        "@types/vscode": "^1.80.0",
         "@types/mocha": "^10.0.10",
         "@types/node": "20.x",
         "@typescript-eslint/eslint-plugin": "^8.22.0",

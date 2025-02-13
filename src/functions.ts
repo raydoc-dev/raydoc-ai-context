@@ -3,112 +3,123 @@ import { DocumentSymbol, SymbolKind } from 'vscode';
 import { symbolContainingRange } from './symbols';
 import { FunctionDefinition } from './types';
 
-/**
- * Retrieves the text (and range) of the function (regular or arrow) that encloses `position`
- * using the document symbol provider. If none is found, returns the entire document as a fallback.
- */
-export async function getEnclosingFunction(
+export async function getFunctionDefinition(
     doc: vscode.TextDocument,
-    position: vscode.Position
+    position: vscode.Position,
+    findTypes = false
 ): Promise<FunctionDefinition | undefined> {
-    // Fetch top-level symbols
-    const symbols = await vscode.commands.executeCommand<DocumentSymbol[]>(
+    // 1) Get all the symbols in the document
+    let symbols = await vscode.commands.executeCommand<DocumentSymbol[]>(
         'vscode.executeDocumentSymbolProvider',
         doc.uri
     );
 
-    // No symbols at all => fallback
-    if (!symbols || symbols.length === 0) {
-        return entireDocumentFallback(doc);
+    // If we didn't get any symbols, we can't proceed
+    if (!symbols) {
+        return undefined;
     }
 
-    const arrowOrFunctionSymbol = locateArrowOrFunctionSymbol(symbols, position);
-    if (!arrowOrFunctionSymbol) {
-        // If we can’t confirm it's a function or arrow function, fallback
-        return entireDocumentFallback(doc);
+    // Flatten the symbols to make processing easier and more standardized
+    symbols = flattenDocumentSymbols(symbols);
+
+    // 2) Find the largest function symbol that contains the cursor position
+    const functionSymbol = getLargestFunctionSymbolForPosition(doc, symbols, position, findTypes);
+
+    // If we didn't find a function symbol, we can't proceed
+    if (!functionSymbol) {
+        return undefined;
     }
 
-    const text = doc.getText(arrowOrFunctionSymbol.range);
-    return {
-        filename: doc.fileName,
-        functionText: text,
-        functionSymbol: arrowOrFunctionSymbol,
-    };
+    // 3) Pull out each of the parts of the function definition from the symbol;
+    return functionDefinitionByLanguage(doc, functionSymbol);
 }
 
-/**
- * If we can't find any enclosing function/arrow function symbol, return the entire document.
- */
-function entireDocumentFallback(doc: vscode.TextDocument): FunctionDefinition {
-    const fullText = doc.getText();
-    // We'll create a pseudo-symbol that spans the entire file
-    const entireRange = new vscode.Range(0, 0, doc.lineCount, 0);
+function flattenDocumentSymbols(symbols: DocumentSymbol[]): DocumentSymbol[] {
+    const flattenedSymbols: DocumentSymbol[] = [];
 
-    const fileSymbol = new vscode.DocumentSymbol(
-        doc.fileName,
-        'Entire Document',
-        SymbolKind.File,
-        entireRange,
-        entireRange
-    );
-
-    return {
-        filename: doc.fileName,
-        functionText: fullText,
-        functionSymbol: fileSymbol
-    };
-}
-
-/**
- * Given a symbol that encloses `position`, determine if it's:
- * 1) Already a function (Function, Method, or Constructor), or
- * 2) A variable with a child function symbol (common for arrow functions),
- * 3) or neither.
- *
- * Returns the "function-like" symbol if found, else undefined.
- */
-function locateArrowOrFunctionSymbol(
-    symbols: DocumentSymbol[],
-    position: vscode.Position
-): DocumentSymbol | undefined {
-    // First try to find function symbols at the current level that contain the position
-    let largestFunctionSymbol: DocumentSymbol | undefined;
-    
     for (const symbol of symbols) {
+        flattenedSymbols.push(symbol);
+        if (symbol.children) {
+            flattenedSymbols.push(...flattenDocumentSymbols(symbol.children));
+        }
+    }
+
+    return flattenedSymbols;
+}
+
+function getLargestFunctionSymbolForPosition(
+    doc: vscode.TextDocument,
+    symbols: DocumentSymbol[],
+    position: vscode.Position,
+    findTypes: boolean,
+): DocumentSymbol | undefined {
+    let largestFunctionSymbol: DocumentSymbol | undefined;
+
+    for (const symbol of symbols) {
+        let isFunction = false;
+        let isType = false;
+
+        switch (doc.languageId) {
+            case 'python':
+                ({ isFunction, isType } = isFunctionAndTypePython(symbol));
+                break;
+            case 'typescript':
+                ({ isFunction, isType } = isFunctionAndTypeTypescript(symbol));
+                break;
+            case 'javascript':
+                ({ isFunction, isType } = isFunctionAndTypeJavascript(symbol));
+                break;
+            case 'go':
+                ({ isFunction, isType } = isFunctionAndTypeGo(symbol));
+                break;
+            case 'cpp':
+                ({ isFunction, isType } = isFunctionAndTypeCpp(symbol));
+                break;
+            default:
+                break;
+        }
         if (
-            (symbol.kind === SymbolKind.Function ||
-                symbol.kind === SymbolKind.Method ||
-                symbol.kind === SymbolKind.Constructor) &&
+            ((isFunction && !findTypes) ||
+                (isType && findTypes)) &&
             symbol.range.contains(position)
         ) {
-            // If we haven't found a function yet, or if this one has a larger range
-            if (!largestFunctionSymbol || 
-                isLargerRange(symbol.range, largestFunctionSymbol.range)) {
+            if (!largestFunctionSymbol || isLargerRange(symbol.range, largestFunctionSymbol.range)) {
                 largestFunctionSymbol = symbol;
             }
         }
     }
-    
-    // If we found a function at this level, return it
-    if (largestFunctionSymbol) {
-        return largestFunctionSymbol;
-    }
-    
-    // Otherwise, collect all children that contain the position
-    const relevantChildren: DocumentSymbol[] = [];
-    for (const symbol of symbols) {
-        if (symbol.range.contains(position)) {
-            relevantChildren.push(...symbol.children);
-        }
-    }
-    
-    // If we have relevant children, recurse with them
-    if (relevantChildren.length > 0) {
-        return locateArrowOrFunctionSymbol(relevantChildren, position);
-    }
-    
-    // If no functions found at this level or in children
-    return undefined;
+
+    return largestFunctionSymbol;
+}
+
+function isFunctionAndTypePython(symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
+    const isFunction = symbol.kind === SymbolKind.Function || symbol.kind === SymbolKind.Method || symbol.kind === SymbolKind.Constructor;
+    const isType = symbol.kind === SymbolKind.Class || symbol.kind === SymbolKind.Interface;
+    return { isFunction, isType };
+}
+
+function isFunctionAndTypeTypescript(symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
+    const isFunction = symbol.kind === SymbolKind.Function || symbol.kind === SymbolKind.Method || symbol.kind === SymbolKind.Constructor;
+    const isType = symbol.kind === SymbolKind.Class || symbol.kind === SymbolKind.Interface || symbol.kind === SymbolKind.Variable;
+    return { isFunction, isType };
+}
+
+function isFunctionAndTypeJavascript(symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
+    const isFunction = symbol.kind === SymbolKind.Function || symbol.kind === SymbolKind.Method || symbol.kind === SymbolKind.Constructor;
+    const isType = symbol.kind === SymbolKind.Class || symbol.kind === SymbolKind.Interface || symbol.kind === SymbolKind.Variable;
+    return { isFunction, isType };
+}
+
+function isFunctionAndTypeGo(symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
+    const isFunction = symbol.kind === SymbolKind.Function || symbol.kind === SymbolKind.Method || symbol.kind === SymbolKind.Constructor;
+    const isType = symbol.kind === SymbolKind.Struct || symbol.kind === SymbolKind.Interface;
+    return { isFunction, isType };
+}
+
+function isFunctionAndTypeCpp(symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
+    const isFunction = symbol.kind === SymbolKind.Function || symbol.kind === SymbolKind.Method || symbol.kind === SymbolKind.Constructor;
+    const isType = symbol.kind === SymbolKind.Class || symbol.kind === SymbolKind.Interface || symbol.kind === SymbolKind.Struct;
+    return { isFunction, isType };
 }
 
 // Helper function to determine if range1 is larger than range2
@@ -133,93 +144,117 @@ function getRangeSize(range: vscode.Range): number {
     return range.end.character - range.start.character;
 }
 
-/**
- * Naive approach to find function calls in text by regex (e.g., "myFunc(", "someFunction(").
- * Returns an array of function names.
- */
-export function findFunctionCalls(funcText: string): string[] {
-    // This won't handle obj.method() or advanced cases, but demonstrates the idea.
-    const regex = /\b(\w+)\s*\(/g;
-    const calls = new Set<string>();
-    let match;
-    while ((match = regex.exec(funcText)) !== null) {
-        calls.add(match[1]);
+function functionDefinitionByLanguage(
+    doc: vscode.TextDocument,
+    functionSymbol: DocumentSymbol
+): FunctionDefinition | undefined {
+    switch (doc.languageId) {
+        case 'python':
+            return getFunctionDefinitionPython(doc, functionSymbol);
+        case 'typescript':
+            return getFunctionDefinitionTypescript(doc, functionSymbol);
+        case 'javascript':
+            return getFunctionDefinitionJavascript(doc, functionSymbol);
+        case 'go':
+            return getFunctionDefinitionGo(doc, functionSymbol);
+        case 'cpp':
+            return getFunctionDefinitionCpp(doc, functionSymbol);
+        default:
+            return undefined;
     }
-    return Array.from(calls);
 }
 
-/**
- * Attempt to find the definition of `functionName` by searching the doc lines for a call,
- * then using the definition provider. We gather the entire function text from the enclosing symbol.
- */
-export async function findFunctionDefinition(
+function getFunctionDefinitionPython(
     doc: vscode.TextDocument,
-    hintPosition: vscode.Position,
-    functionName: string
-): Promise<{ uri: vscode.Uri; text: string } | undefined> {
-    // A naive approach: search for `functionName(` in the doc, call definition provider, etc.
-    for (let lineNum = 0; lineNum < doc.lineCount; lineNum++) {
-        const lineText = doc.lineAt(lineNum).text;
-        const idx = lineText.indexOf(functionName + '(');
-        if (idx !== -1) {
-            const defLocations = (await vscode.commands.executeCommand(
-                'vscode.executeDefinitionProvider',
-                doc.uri,
-                new vscode.Position(lineNum, idx + 1)
-            )) as vscode.Location[] | undefined;
+    symbol: DocumentSymbol
+): FunctionDefinition {
+    const fileText = doc.getText();
+    const lines = fileText.split('\n');
 
-            if (defLocations && defLocations.length) {
-                // We'll pick the first definition
-                const defLoc = defLocations[0];
-                const defDoc = await vscode.workspace.openTextDocument(defLoc.uri);
-                const defSymbols = (await vscode.commands.executeCommand(
-                    'vscode.executeDocumentSymbolProvider',
-                    defDoc.uri
-                )) as vscode.DocumentSymbol[] | undefined;
+    const startLine = symbol.range.start.line;
+    let endLine = startLine;
 
-                if (!defSymbols) {
-                    continue;
-                }
-                const symbol = symbolContainingRange(defSymbols, defLoc.range);
-                if (!symbol) {
-                    continue;
-                }
-                const text = defDoc.getText(symbol.range);
-                return { uri: defDoc.uri, text };
-            }
+    // Determine the indentation level of the start line
+    const startIndentation = lines[startLine].search(/\S/);
+
+    // Look for the end of the function definition
+    for (endLine < lines.length; endLine++;) {
+        const line = lines[endLine];
+
+        if (line.trim() === "") {
+            continue;
+        }
+
+        const currentIndentation = line.search(/\S/);
+
+        // If we're outside the block indentation and it's not a blank line, we've hit the end of the current type
+        if (currentIndentation <= startIndentation && endLine > startLine) {
+            endLine--;
+            break;
         }
     }
-    return undefined;
+
+    // Create the function definition object
+    const functionText = lines.slice(startLine, endLine + 1).join('\n').trim();
+    const filename = doc.fileName;
+
+    return {
+        filename,
+        functionText,
+        functionSymbol: symbol,
+        startLine,
+        endLine,
+    };
 }
 
-export function extractParameterPositions(
+function getFunctionDefinitionTypescript(
     doc: vscode.TextDocument,
-    functionDefintion: FunctionDefinition,
-): vscode.Position[] {
-    const startOffset = functionDefintion.functionText.indexOf('(');
-    const endOffset = functionDefintion.functionText.indexOf(')');
+    symbol: DocumentSymbol
+): FunctionDefinition {
+    return {
+        filename: doc.fileName,
+        functionText: doc.getText(symbol.range),
+        functionSymbol: symbol,
+        startLine: symbol.range.start.line,
+        endLine: symbol.range.end.line,
+    };
+}
 
-    if (startOffset === -1 || endOffset === -1 || startOffset > endOffset) {
-        console.log("No valid parameter list found.");
-        return [];
-    }
+function getFunctionDefinitionJavascript(
+    doc: vscode.TextDocument,
+    symbol: DocumentSymbol
+): FunctionDefinition {
+    return {
+        filename: doc.fileName,
+        functionText: doc.getText(symbol.range),
+        functionSymbol: symbol,
+        startLine: symbol.range.start.line,
+        endLine: symbol.range.end.line,
+    };
+}
 
-    // Extract parameter list text
-    const paramListText = functionDefintion.functionText.substring(startOffset + 1, endOffset);
+function getFunctionDefinitionGo(
+    doc: vscode.TextDocument,
+    symbol: DocumentSymbol
+): FunctionDefinition {
+    return {
+        filename: doc.fileName,
+        functionText: doc.getText(symbol.range),
+        functionSymbol: symbol,
+        startLine: symbol.range.start.line,
+        endLine: symbol.range.end.line,
+    };
+}
 
-    // Split parameters and track positions
-    let currentOffset = startOffset + 1; // Offset relative to functionText
-    const paramPositions: vscode.Position[] = [];
-
-    paramListText.split(',').map(param => param.trim()).forEach(param => {
-        if (param.length === 0) { return; }
-
-        const paramOffset = functionDefintion.functionText.indexOf(param, currentOffset);
-        const absoluteOffset = doc.offsetAt(functionDefintion.functionSymbol.range.start) + paramOffset;
-        paramPositions.push(doc.positionAt(absoluteOffset));
-
-        currentOffset = paramOffset + param.length;
-    });
-
-    return paramPositions;
+function getFunctionDefinitionCpp(
+    doc: vscode.TextDocument,
+    symbol: DocumentSymbol
+): FunctionDefinition {
+    return {
+        filename: doc.fileName,
+        functionText: doc.getText(symbol.range),
+        functionSymbol: symbol,
+        startLine: symbol.range.start.line,
+        endLine: symbol.range.end.line,
+    };
 }
