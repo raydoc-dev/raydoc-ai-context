@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { contextToString } from './toString';
 import { gatherContext } from './context';
 import { getFunctionDefinition } from './functions';
+import { FunctionDefinition } from './types';
 
 export function activate(context: vscode.ExtensionContext) {
     const copyContextAtCursorCommand = vscode.commands.registerCommand(
@@ -65,14 +66,69 @@ async function sendContextToLlmCommandHandler() {
         return;
     }
 
-    const position = editor.selection.active; // Cursor position
+    const position = editor.selection.active; // Store cursor position
     const doc = editor.document;
-
     const functionDefinition = await getFunctionDefinition(doc, position);
-    console.log(functionDefinition);
 
     if (!functionDefinition) {
         vscode.window.showErrorMessage('No function definition found for the current cursor position.');
         return;
     }
+
+    const context = await gatherContext(doc, position, undefined);
+
+    if (!context) {
+        vscode.window.showErrorMessage('No context found for the current cursor position.');
+        return;
+    }
+
+    // Store the current file's URI to return to it later
+    const originalFileUri = doc.uri;
+
+    // Process all function references
+    await selectAndSendToCopilot(functionDefinition);
+
+    for (const typeDefn of context.typeDefns || []) {
+        await selectAndSendToCopilot(typeDefn);
+    }
+
+    for (const referencedFunction of context.referencedFunctions || []) {
+        await selectAndSendToCopilot(referencedFunction);
+    }
+
+    // Switch back to the original file and restore cursor position
+    const originalDoc = await vscode.workspace.openTextDocument(originalFileUri);
+    const originalEditor = await vscode.window.showTextDocument(originalDoc, vscode.ViewColumn.One);
+
+    originalEditor.selection = new vscode.Selection(position, position);
+}
+
+
+async function selectAndSendToCopilot(functionDefinition: FunctionDefinition) {
+    // Get the file URI from the function definition (relative to the workspace root)
+    const fullFilePath = vscode.workspace.workspaceFolders
+        ? vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, functionDefinition.filename).fsPath
+        : functionDefinition.filename; // Fallback if workspace is not open
+
+    const fileUri = vscode.Uri.file(fullFilePath);
+
+    // Open the document
+    const doc = await vscode.workspace.openTextDocument(fileUri);
+    const editor = await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
+
+    // Get function range (you should implement this based on your logic)
+    let functionRange = getSelectionFromFunctionDefinition(doc, functionDefinition);
+
+    // Apply the selection
+    editor.selection = functionRange;
+
+    // Attach the selection to Copilot Chat
+    vscode.commands.executeCommand("github.copilot.chat.attachSelection");
+}
+
+function getSelectionFromFunctionDefinition(doc: vscode.TextDocument, functionDefinition: FunctionDefinition): vscode.Selection {
+    return new vscode.Selection(
+        new vscode.Position(functionDefinition.startLine, 0),
+        new vscode.Position(functionDefinition.endLine, doc.lineAt(functionDefinition.endLine).text.length)
+    );
 }
