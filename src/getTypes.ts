@@ -1,20 +1,19 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 
-import { FunctionDefinition, TypeDefinition } from './types';
+import { FunctionDefinition } from './types';
 import { getFunctionDefinition } from './functions';
 
 export async function getTypeDefinitionsForFunction(
     document: vscode.TextDocument,
     functionDefinition: FunctionDefinition,
-): Promise<TypeDefinition[]> {
-    const functionTypeDefinitions = new Map<String, TypeDefinition>;
+): Promise<FunctionDefinition[]> {
+    const functionTypeDefinitions = new Map<String, FunctionDefinition>();
 
     // Get the types for each line in the function
     for (let i = functionDefinition.startLine; i <= functionDefinition.endLine; i++) {
         const lineTypeDefinitions = await getTypeDefinitionsForLine(document, new vscode.Position(i, 0));
         for (const typeDef of lineTypeDefinitions) {
-            const key = `${typeDef.typeName}-${typeDef.filename}`;
+            const key = `${typeDef.functionName}-${typeDef.filename}`;
             if (!functionTypeDefinitions.has(key)) {
                 functionTypeDefinitions.set(key, typeDef);
             }
@@ -24,11 +23,11 @@ export async function getTypeDefinitionsForFunction(
     return Array.from(functionTypeDefinitions.values());
 }
 
-export async function getTypeDefinitionsForLine(
+async function getTypeDefinitionsForLine(
     document: vscode.TextDocument,
     position: vscode.Position,
-): Promise<TypeDefinition[]> {
-    const typeDefinitions = new Map<string, TypeDefinition>();
+): Promise<FunctionDefinition[]> {
+    const typeDefinitions = new Map<string, FunctionDefinition>();
     const line = document.lineAt(position.line).text;
 
     // Change all non-alphabet characters to spaces
@@ -54,7 +53,7 @@ export async function getTypeDefinitionsForLine(
         const typeInfo = await getTypeDefinitionsForPosition(document, pos);
         if (typeInfo) {
             for (const typeDef of typeInfo) {
-                const key = `${typeDef.typeName}-${typeDef.filename}`;
+                const key = `${typeDef.functionName}-${typeDef.filename}`;
                 typeDefinitions.set(key, typeDef);
             }
         }
@@ -64,11 +63,11 @@ export async function getTypeDefinitionsForLine(
     return Array.from(typeDefinitions.values());
 }
 
-export async function getTypeDefinitionsForPosition(
+async function getTypeDefinitionsForPosition(
     document: vscode.TextDocument,
     position: vscode.Position,
-): Promise<TypeDefinition[]> {
-    const typesDefinitions: TypeDefinition[] = [];
+): Promise<FunctionDefinition[]> {
+    const typesDefinitions: FunctionDefinition[] = [];
     
     // First try type definition provider
     let typeLocations = await vscode.commands.executeCommand<vscode.Location[]>(
@@ -102,8 +101,8 @@ export async function getTypeDefinitionsForPosition(
 
 async function getTypeDefinitionFromLocations(
     locations: vscode.Location[],
-): Promise<TypeDefinition[]> {
-    const typeDefinitions: TypeDefinition[] = [];
+): Promise<FunctionDefinition[]> {
+    const typeDefinitions: FunctionDefinition[] = [];
     for (const location of locations) {
         if (!location.uri || !isInWorkspace(location.uri.fsPath) || isIgnoreLocation(location.uri.fsPath)) {
             continue;
@@ -117,65 +116,10 @@ async function getTypeDefinitionFromLocations(
             continue;
         }
 
-        let typeName = "";
-
-        switch (doc.languageId) {
-            case 'typescript':
-                typeName = extractTypeNameTypescript(functionDefinition.functionText);
-                break;
-            case 'javascript':
-                typeName = extractTypeNameJavascript(functionDefinition.functionText);
-                break;
-            case 'python':
-                typeName = extractTypeNamePython(functionDefinition.functionText);
-                break;
-            case 'go':
-                typeName = extractTypeNameGo(functionDefinition.functionText);
-                break;
-            case 'cpp':
-                typeName = extractTypeNameCpp(functionDefinition.functionText);
-                break;
-            default:
-                typeName = "unknown";
-        }
-
-        if (typeName === "unknown") {
-            continue;
-        }
-
-        typeDefinitions.push({
-            typeName,
-            filename: path.basename(location.uri.fsPath),
-            typeText: functionDefinition.functionText
-        });
+        typeDefinitions.push(functionDefinition);
     }
 
     return typeDefinitions;
-}
-
-function extractTypeNameTypescript(typescriptTypeText: string): string {
-    const match = typescriptTypeText.match(/(interface|class|type|enum)\s+(\w+)/);
-    return match ? match[2] : "unknown";
-}
-
-function extractTypeNameJavascript(javascriptTypeText: string): string {
-    const match = javascriptTypeText.match(/(class)\s+(\w+)/);
-    return match ? match[2] : "unknown";
-}
-
-function extractTypeNamePython(pythonTypeText: string): string {
-    const match = pythonTypeText.match(/(class)\s+(\w+)/);
-    return match ? match[2] : "unknown";
-}
-
-function extractTypeNameGo(goTypeText: string): string {
-    const match = goTypeText.match(/(?:type\s+)?(\w+)\s+struct\b/);
-    return match ? match[1] : "unknown";
-}
-
-function extractTypeNameCpp(cppTypeText: string): string {
-    const match = cppTypeText.match(/(class|struct)\s+(\w+)/);
-    return match ? match[2] : "unknown";
 }
 
 function isInWorkspace(fsPath: string): boolean {

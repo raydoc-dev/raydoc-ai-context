@@ -12,22 +12,17 @@ export type RaydocContext = {
     packages?: Record<string, string>;
     functionDefn?: FunctionDefinition;
     referencedFunctions?: FunctionDefinition[];
-    typeDefns?: TypeDefinition[];
+    typeDefns?: FunctionDefinition[];
     fileTree?: Node;
 }
 
 export type FunctionDefinition = {
+    functionName: string;
     filename: string;
     functionText: string;
     functionSymbol: DocumentSymbol;
     startLine: number;
     endLine: number;
-}
-
-export type TypeDefinition = {
-    typeName: string;
-    filename: string;
-    typeText: string;
 }
 
 export type Node = {

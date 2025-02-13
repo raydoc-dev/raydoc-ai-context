@@ -68,8 +68,8 @@ export function contextToString(context: RaydocContext): string {
     if (includeTypeDefns && context.typeDefns && context.typeDefns.length > 0) {
         output += "\n\n=== Type Definitions ===\n";
         for (const typeDefn of context.typeDefns) {
-            output += `--- Custom Type: "${typeDefn.typeName}" (${typeDefn.filename}) ---\n`;
-            output += typeDefn.typeText;
+            output += `--- Custom Type: "${typeDefn.functionName}" (${typeDefn.filename}) ---\n`;
+            output += typeDefn.functionText;
             output += '\n\n';
         }
     }

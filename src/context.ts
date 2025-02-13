@@ -4,7 +4,7 @@ import * as cp from 'child_process';
 import * as util from 'util';
 
 import { getPackageDependencies } from './packages';
-import { FunctionDefinition, RaydocContext, TypeDefinition } from "./types";
+import { FunctionDefinition, RaydocContext } from "./types";
 import { generateFileTree } from './fileTree';
 import { getTypeDefinitionsForFunction } from './getTypes';
 import { getFunctionDefinition } from './functions';
@@ -26,7 +26,7 @@ export async function gatherContext(
     const functionDefn = await getFunctionDefinition(doc, position);
     const referencedFunctions: FunctionDefinition[] = [];
 
-    var typeDefns: TypeDefinition[] = [];
+    var typeDefns: FunctionDefinition[] = [];
     if (functionDefn) {
         typeDefns = await getTypeDefinitionsForFunction(doc, functionDefn);
     } else {
