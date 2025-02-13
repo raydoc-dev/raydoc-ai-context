@@ -25,6 +25,10 @@
             {
                 "command": "raydoc-context.copyContextAtCursor",
                 "title": "Copy Context at Cursor"
+            },
+            {
+                "command": "raydoc-context.sendContextToLlm",
+                "title": "Send Context to Copilot Chat or Cursor Composer"
             }
         ],
         "keybindings": [
@@ -32,6 +36,12 @@
                 "command": "raydoc-context.copyContextAtCursor",
                 "key": "ctrl+shift+c",
                 "mac": "cmd+shift+c",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "raydoc-context.sendContextToLlm",
+                "key": "ctrl+alt+shift+l",
+                "mac": "cmd+alt+shift+l",
                 "when": "editorTextFocus"
             }
         ],
