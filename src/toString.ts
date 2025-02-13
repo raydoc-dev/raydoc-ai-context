@@ -29,7 +29,9 @@ export function contextToString(context: RaydocContext): string {
         }
     }
 
-    output += "=== Context ===\n";
+    if (context.filepath || context.line) {
+        output += "=== Context ===\n";
+    }
 
     if (context.filepath) {
         output += `File: ${context.filepath}\n`;
