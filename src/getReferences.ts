@@ -12,7 +12,7 @@ export async function getReferencesForFunction(
 
     // Get the types for each line in the function
     for (let i = functionDefinition.startLine; i <= functionDefinition.endLine; i++) {
-        const lineTypeDefinitions = await getTypeDefinitionsForLine(document, new vscode.Position(i, 0), returnTypes);
+        const lineTypeDefinitions = await getTypeDefinitionsForLine(document, new vscode.Position(i, 0), functionDefinition, returnTypes);
         for (const typeDef of lineTypeDefinitions) {
             if (typeDef.functionName === functionDefinition.functionName && typeDef.filename === functionDefinition.filename) {
                 continue;
@@ -31,6 +31,7 @@ export async function getReferencesForFunction(
 async function getTypeDefinitionsForLine(
     document: vscode.TextDocument,
     position: vscode.Position,
+    functionDefinition: FunctionDefinition,
     returnTypes: boolean,
 ): Promise<FunctionDefinition[]> {
     const typeDefinitions = new Map<string, FunctionDefinition>();
@@ -56,7 +57,7 @@ async function getTypeDefinitionsForLine(
     }
 
     for (const pos of positions) {
-        const typeInfo = await getTypeDefinitionsForPosition(document, pos, returnTypes);
+        const typeInfo = await getTypeDefinitionsForPosition(document, pos, functionDefinition, returnTypes);
         if (typeInfo) {
             for (const typeDef of typeInfo) {
                 const key = `${typeDef.functionName}-${typeDef.filename}`;
@@ -72,36 +73,40 @@ async function getTypeDefinitionsForLine(
 async function getTypeDefinitionsForPosition(
     document: vscode.TextDocument,
     position: vscode.Position,
+    functionDefinition: FunctionDefinition,
     returnTypes: boolean,
 ): Promise<FunctionDefinition[]> {
     const typesDefinitions: FunctionDefinition[] = [];
-    
-    // First try type definition provider
-    let typeLocations = await vscode.commands.executeCommand<vscode.Location[]>(
-        'vscode.executeTypeDefinitionProvider',
-        document.uri,
-        position
-    );
 
-    if (typeLocations && typeLocations.length > 0) {
-        typesDefinitions.push(...await getTypeDefinitionFromLocations(typeLocations, returnTypes));
+    const isLocationInsideFunction = (location: vscode.Location | undefined): boolean => {
+        if (!location || !location.range) { return false; } // Ensure location and range exist
 
-        // If we found valid types, return them
-        if (typesDefinitions.length > 0) {
-            return typesDefinitions;
-        }
-    }
+        const { startLine, endLine } = functionDefinition;
+        const locationStart = location.range.start.line;
+        const locationEnd = location.range.end.line;
 
-    // If we didn't have any valid types, try definition provider as a fallback
-    typeLocations = await vscode.commands.executeCommand<vscode.Location[]>(
-        'vscode.executeDefinitionProvider',
-        document.uri,
-        position
-    );
+        return locationStart >= startLine && locationEnd <= endLine;
+    };
 
-    if (typeLocations && typeLocations.length > 0) {
-        typesDefinitions.push(...await getTypeDefinitionFromLocations(typeLocations, returnTypes));
-    }
+    const getFilteredLocations = async (command: string): Promise<vscode.Location[]> => {
+        let locations = await vscode.commands.executeCommand<vscode.Location[] | undefined>(
+            command,
+            document.uri,
+            position
+        );
+
+        return (locations || []).filter(loc => loc && loc.range && !isLocationInsideFunction(loc));
+    };
+
+    // Run providers and collect only relevant locations
+    let typeLocations = await getFilteredLocations('vscode.executeImplementationProvider');
+    typesDefinitions.push(...await getTypeDefinitionFromLocations(typeLocations, returnTypes));
+
+    typeLocations = await getFilteredLocations('vscode.executeDefinitionProvider');
+    typesDefinitions.push(...await getTypeDefinitionFromLocations(typeLocations, returnTypes));
+
+    typeLocations = await getFilteredLocations('vscode.executeTypeDefinitionProvider');
+    typesDefinitions.push(...await getTypeDefinitionFromLocations(typeLocations, returnTypes));
 
     return typesDefinitions;
 }

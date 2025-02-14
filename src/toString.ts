@@ -79,7 +79,7 @@ export function contextToString(context: RaydocContext): string {
         output += fileTreeToString(context.fileTree, '');
     }
 
-    if (includeReferencedFunctions && context.referencedFunctions) {
+    if (includeReferencedFunctions && context.referencedFunctions && context.referencedFunctions.length > 0) {
         output += "\n=== Referenced Functions ===\n";
         for (const refFunc of context.referencedFunctions) {
             output += `--- Referenced Function: "${refFunc.functionName}" (${refFunc.filename}) ---\n`;
