@@ -3,7 +3,7 @@
     "displayName": "Raydoc AI Context",
     "publisher": "raydoc",
     "description": "No more AI hallucinations. Just real answers from your real code",
-    "version": "0.1.11",
+    "version": "0.1.12",
     "icon": "icon.png",
     "engines": {
         "vscode": "^1.80.0"
