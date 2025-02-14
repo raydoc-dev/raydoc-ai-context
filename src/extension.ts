@@ -26,6 +26,7 @@ export function activate(context: vscode.ExtensionContext) {
         copyContextAtCursorCommand,
         generateProjectDocumentationCommand,
         sendContextToLlmCommand,
+        generateProjectDocumentationCommand,
     );
 }
 

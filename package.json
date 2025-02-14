@@ -33,6 +33,10 @@
             {
                 "command": "raydoc-context.sendContextToLlm",
                 "title": "Send Context to Copilot Chat or Cursor Composer"
+            },
+            {
+                "command": "raydoc-context.generateProjectDocumentation",
+                "title": "Generate Documentation for the project"
             }
         ],
         "keybindings": [
