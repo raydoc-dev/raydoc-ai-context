@@ -3,11 +3,11 @@ import { LlmPrompt } from "../types";
 
 type FireworksRequest = {
     model: string
-    maxTokens: number
-    topP: number
-    topK: number
-    presencePenalty: number
-    frequencyPenalty: number
+    max_tokens: number
+    top_p: number
+    top_k: number
+    presence_penalty: number
+    frequency_penalty: number
     temperature: number
     messages: LlmPrompt[]
 }
@@ -25,13 +25,13 @@ type FireworksResponse = {
 type Choice = {
     index: number
     message: LlmPrompt
-    finishReason: string
+    finish_reason: string
 }
 
 type UsageStats = {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
 }
 
 export class FireworksClient extends Llm {
@@ -64,11 +64,11 @@ export class FireworksClient extends Llm {
 
         let requestPayload: FireworksRequest = {
             model: model,
-            maxTokens: 16384,
-            topP: 1,
-            topK: 40,
-            presencePenalty: 0,
-            frequencyPenalty: 0,
+            max_tokens: 16384,
+            top_p: 1,
+            top_k: 40,
+            presence_penalty: 0,
+            frequency_penalty: 0,
             temperature: 0.05,
             messages: messages,
         };
@@ -83,7 +83,7 @@ export class FireworksClient extends Llm {
         });
 
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            throw new Error(`HTTP error! status: ${response.status}. ${await response.text()}`);
         }
 
         const data = await response.json() as FireworksResponse;

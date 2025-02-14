@@ -2,10 +2,12 @@ import * as vscode from 'vscode';
 import { consolidateContexts, gatherContext } from './context';
 import { RaydocContext } from './types';
 import { getAllFunctionDefinitionsInDoc } from './functions';
-import { codebaseSummaryPrompt } from './llm/llm';
+import { codebaseSummaryPrompt, ModelType } from './llm/llm';
 import { contextToString, contextToStringLlm } from './toString';
 import { getFunctionDefinition } from './functions';
 import { FunctionDefinition } from './types';
+import { FireworksClient } from './llm/fireworks';
+import { getSecret } from './secrets';
 
 export function activate(context: vscode.ExtensionContext) {
     const copyContextAtCursorCommand = vscode.commands.registerCommand(
@@ -17,16 +19,41 @@ export function activate(context: vscode.ExtensionContext) {
         'raydoc-context.generateProjectDocumentation',
         async () => { generateProjectDocumentationCommandHandler(); }
     );
+
     const sendContextToLlmCommand = vscode.commands.registerCommand(
         'raydoc-context.sendContextToLlm',
         async () => { sendContextToLlmCommandHandler(); }
     );
 
+    const secretsConfigChanged = vscode.workspace.onDidChangeConfiguration(async (e) => {
+        if (e.affectsConfiguration('raydoc-context.secrets')) {
+            console.log('Secrets configuration changed.');
+            const openaiApiKey = await getSecret(context, 'openaiApiKey');
+            if (openaiApiKey) {
+                vscode.window.showInformationMessage('Raydoc: OpenAI API key retrieved.');
+                process.env.OPENAI_API_KEY = openaiApiKey;
+            }
+            const raydocApiKey = await getSecret(context, 'raydocApiKey');
+            if (raydocApiKey) {
+                vscode.window.showInformationMessage('Raydoc: Raydoc API key retrieved.');
+                process.env.RAYDOC_API_KEY = raydocApiKey;
+            }
+            const fireworksApiKey = await getSecret(context, 'fireworksApiKey');
+            if (fireworksApiKey) {
+                vscode.window.showInformationMessage('Raydoc: Fireworks API key retrieved.');
+                process.env.FIREWORKS_API_KEY = fireworksApiKey;
+            }
+            process.env.OPENAI_API_KEY = await getSecret(context, 'openaiApiKey');
+            process.env.RAYDOC_API_KEY = await getSecret(context, 'raydocApiKey');
+        }
+
+    });
+
     context.subscriptions.push(
         copyContextAtCursorCommand,
         generateProjectDocumentationCommand,
         sendContextToLlmCommand,
-        generateProjectDocumentationCommand,
+        secretsConfigChanged
     );
 }
 
@@ -69,6 +96,8 @@ async function copyContextAtCursorCommandHandler() {
 }
 
 export async function generateProjectDocumentationCommandHandler() {
+    vscode.window.showInformationMessage('Generating codebase summary...');
+
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
         vscode.window.showWarningMessage('No workspace folder found.');
@@ -108,14 +137,20 @@ export async function generateProjectDocumentationCommandHandler() {
 
     const summaryPrompt = codebaseSummaryPrompt(dedupedContext);
 
-    console.log(summaryPrompt);
+    try {
+        const llmClient = new FireworksClient();
 
-    // const output = contextToString(dedupedContext);
-    if (summaryPrompt) {
-        // await vscode.env.clipboard.writeText(output);
-        vscode.window.showInformationMessage('Raydoc: !!!!');
-    } else {
-        vscode.window.showWarningMessage('No context available to copy.');
+        const codebaseSummary = await llmClient.query(summaryPrompt, ModelType.LargeLlm);
+
+        if (codebaseSummary) {
+            await vscode.env.clipboard.writeText(codebaseSummary);
+            vscode.window.showInformationMessage('Raydoc: codebase summary copied to clipboard!');
+        } else {
+            vscode.window.showWarningMessage('No codebase summary available.');
+        }
+    } catch (error) {
+        console.error(`Failed to generate codebase summary: ${error}`);
+        vscode.window.showErrorMessage(`Failed to generate codebase summary. ${error}`);
     }
 }
 

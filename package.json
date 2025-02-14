@@ -27,10 +27,6 @@
                 "title": "Copy Context at Cursor"
             },
             {
-                "command": "raydoc-context.generateProjectDocumentation",
-                "title": "Generate Documentation for the project"
-            },
-            {
                 "command": "raydoc-context.sendContextToLlm",
                 "title": "Send Context to Copilot Chat or Cursor Composer"
             },
@@ -74,6 +70,21 @@
                         "toml.hpp"
                     ],
                     "description": "Paths that should ignored when retrieving types."
+                },
+                "raydoc-context.secrets.fireworksApiKey": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Enter your Fireworks api key here (it will disappear once used and be stored as a secret)"
+                },
+                "raydoc-context.secrets.openaiApiKey": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Enter your OpenAI api key here (it will disappear once used and be stored as a secret)"
+                },
+                "raydoc-context.secrets.raydocApiKey": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Enter your Raydoc api key here (it will disappear once used and be stored as a secret)"
                 },
                 "raydoc-context.output-config.environment": {
                     "type": "boolean",
