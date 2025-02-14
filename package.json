@@ -25,6 +25,10 @@
             {
                 "command": "raydoc-context.copyContextAtCursor",
                 "title": "Copy Context at Cursor"
+            },
+            {
+                "command": "raydoc-context.generateProjectDocumentation",
+                "title": "Generate Documentation for the project"
             }
         ],
         "keybindings": [
@@ -44,7 +48,12 @@
                     "items": {
                         "type": "string"
                     },
-                    "default": ["node_modules", "stdlib", "python3", "toml.hpp"],
+                    "default": [
+                        "node_modules",
+                        "stdlib",
+                        "python3",
+                        "toml.hpp"
+                    ],
                     "description": "Paths that should ignored when retrieving types."
                 },
                 "raydoc-context.output-config.environment": {

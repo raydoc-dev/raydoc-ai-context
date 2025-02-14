@@ -46,6 +46,52 @@ function flattenDocumentSymbols(symbols: DocumentSymbol[]): DocumentSymbol[] {
     return flattenedSymbols;
 }
 
+export async function getAllFunctionDefinitionsInDoc(doc: vscode.TextDocument): Promise<FunctionDefinition[]> {
+    const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+        'vscode.executeDocumentSymbolProvider',
+        doc.uri
+    );
+    const functionDefs: FunctionDefinition[] = [];
+
+    const traverse = (symbols: vscode.DocumentSymbol[]) => {
+        for (const symbol of symbols) {
+            if (
+                symbol.kind === vscode.SymbolKind.Function ||
+                symbol.kind === vscode.SymbolKind.Method
+            ) {
+                functionDefs.push({
+                    functionName: symbol.name,
+                    filename: doc.uri.fsPath,
+                    functionText: doc.getText(symbol.range),
+                    functionSymbol: symbol,
+                    startLine: symbol.range.start.line,
+                    endLine: symbol.range.end.line
+                });
+            }
+            if (symbol.children && symbol.children.length > 0) {
+                traverse(symbol.children);
+            }
+        }
+    };
+
+    if (symbols) {
+        traverse(symbols);
+    }
+
+    return functionDefs;
+}
+
+// Optional helper to deduplicate functions by name
+function deduplicateFunctionDefinitions(functions: FunctionDefinition[]): FunctionDefinition[] {
+    const map = new Map<string, FunctionDefinition>();
+    for (const fn of functions) {
+        if (!map.has(fn.functionName)) {
+            map.set(fn.functionName, fn);
+        }
+    }
+    return Array.from(map.values());
+}
+
 function getLargestFunctionSymbolForPosition(
     doc: vscode.TextDocument,
     symbols: DocumentSymbol[],

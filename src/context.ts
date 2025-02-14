@@ -115,13 +115,13 @@ export async function getImmediateContextLines(
 ): Promise<string> {
     const lineCount = doc.lineCount;
     const lineNumber = position.line;
-    
+
     // Get lines before, including the current line, and after
     const startLine = Math.max(0, lineNumber - 3); // Ensure we don't go below line 0
     const endLine = Math.min(lineCount - 1, lineNumber + 3); // Ensure we don't go above the last line
 
     const contextLines: string[] = [];
-    
+
     // Collect the lines in the context range
     for (let i = startLine; i <= endLine; i++) {
         if (i === lineNumber) {
@@ -155,7 +155,7 @@ async function getPythonVersion(): Promise<string | undefined> {
 
     // Get the active interpreter (path to Python executable)
     const activeEnv = await pythonAPI.environments.getActiveEnvironmentPath();
-    
+
     if (!activeEnv || !activeEnv.path) {
         return undefined;
     }
@@ -174,4 +174,90 @@ async function getPythonVersion(): Promise<string | undefined> {
         vscode.window.showErrorMessage(`Failed to get Python version: ${errorMessage}`);
         return undefined;
     }
+}
+
+/**
+ * Deduplicates an array of RaydocContext objects by merging their properties
+ * into a single consolidated context.
+ */
+export function consolidateContexts(contexts: RaydocContext[]): RaydocContext {
+    // Start with an empty RaydocContext. You might want to adjust default values
+    // or the merging logic depending on your specific use-case.
+    const deduped: RaydocContext = {
+        filepath: 'multiple',
+        line: 0,
+        immediateContextLines: '',
+        errorMessage: '',
+        languageId: '',
+        runtime: '',
+        runtimeVersion: '',
+        runtimePath: '',
+        packages: {},
+        functionDefn: undefined,
+        referencedFunctions: [],
+        typeDefns: [],
+        fileTree: undefined
+    };
+
+    // Combine immediateContextLines from all contexts
+    deduped.immediateContextLines = contexts
+        .map(ctx => ctx.immediateContextLines || '')
+        .filter(Boolean)
+        .join('\n');
+
+    // Combine any error messages
+    deduped.errorMessage = contexts
+        .map(ctx => ctx.errorMessage || '')
+        .filter(Boolean)
+        .join('; ');
+
+    // Merge languageIds - if they differ, join them as a comma-separated list
+    const languageIds = new Set(contexts.map(ctx => ctx.languageId));
+    deduped.languageId = Array.from(languageIds).join(', ');
+
+    // Merge packages; if the same package is present in multiple files,
+    // the last encountered version will be used.
+    deduped.packages = contexts.reduce((acc, ctx) => {
+        if (ctx.packages) {
+            Object.entries(ctx.packages).forEach(([pkg, version]) => {
+                acc[pkg] = version;
+            });
+        }
+        return acc;
+    }, {} as Record<string, string>);
+
+    // For function definitions, pick the first non-null function definition (if any)
+    deduped.functionDefn = contexts.find(ctx => ctx.functionDefn !== undefined)?.functionDefn;
+
+    // Merge referencedFunctions by deduplicating them by name (assuming each function has a unique name)
+    const refMap = new Map<vscode.DocumentSymbol, any>();
+    contexts.forEach(ctx => {
+        ctx.referencedFunctions?.forEach(fn => {
+            if (fn.functionSymbol) {
+                refMap.set(fn.functionSymbol, fn);
+            }
+        });
+    });
+    deduped.referencedFunctions = Array.from(refMap.values());
+
+    // Merge type definitions in the same way
+    const typeMap = new Map<vscode.DocumentSymbol, any>();
+    contexts.forEach(ctx => {
+        ctx.typeDefns?.forEach(td => {
+            if (td.functionSymbol) {
+                typeMap.set(td.functionSymbol, td);
+            }
+        });
+    });
+    deduped.typeDefns = Array.from(typeMap.values());
+
+    // As an example, build a simple fileTree that lists all file paths that contributed to the context.
+    for (const ctx of contexts) {
+        if (ctx.fileTree) {
+            deduped.fileTree = ctx.fileTree;
+            break;
+        }
+    }
+
+    return deduped;
 }

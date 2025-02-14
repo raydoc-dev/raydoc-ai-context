@@ -31,3 +31,8 @@ export type Node = {
     fsPath: string;
     children?: Node[];
 }
+
+export type LlmPrompt = {
+    role: string;
+    content: string;
+}

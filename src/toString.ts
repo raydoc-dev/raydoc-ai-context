@@ -91,7 +91,7 @@ export function contextToString(context: RaydocContext): string {
     return output;
 }
 
-function fileTreeToString(node: Node, indent: string): string {
+export function fileTreeToString(node: Node, indent: string): string {
     let output = `${indent}${node.name}${node.isDir ? '/' : ''}\n`;
     if (node.children) {
         for (const child of node.children) {
