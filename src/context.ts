@@ -24,11 +24,6 @@ export async function gatherContext(
     const runtimePath = '';
     const packages = getPackageDependencies(doc.languageId);
     const functionDefn = await getFunctionDefinition(doc, position);
-    var referencedFunctions: FunctionDefinition[] = [];
-
-    if (functionDefn) {
-        referencedFunctions = await getReferencesForFunction(doc, functionDefn, false);
-    }
 
     var typeDefns: FunctionDefinition[] = [];
     if (functionDefn) {
@@ -36,6 +31,18 @@ export async function gatherContext(
     } else {
         return undefined;
     }
+
+    var referencedFunctions: FunctionDefinition[] = [];
+
+    if (functionDefn) {
+        referencedFunctions = await getReferencesForFunction(doc, functionDefn, false);
+    }
+
+    // Filter out referencedFunctions that match a typeDefn (same functionName & filename)
+    const typeDefnSet = new Set(typeDefns.map(def => `${def.functionName}:${def.filename}`));
+    referencedFunctions = referencedFunctions.filter(
+        ref => !typeDefnSet.has(`${ref.functionName}:${ref.filename}`)
+    );
 
     const usedFiles = new Set<string>();
     usedFiles.add(filepath);
