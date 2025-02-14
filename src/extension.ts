@@ -110,7 +110,7 @@ async function sendContextToLlmCommandHandler() {
 }
 
 async function selectAndSendToLlm(functionDefinition: FunctionDefinition) {
-    const config = vscode.workspace.getConfiguration('raydoc');
+    const config = vscode.workspace.getConfiguration('raydoc-context');
     const useCursor = config.get('use-cursor');
 
     // Get the file URI from the function definition (relative to the workspace root)
