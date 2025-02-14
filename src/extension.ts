@@ -139,7 +139,7 @@ async function selectAndSendToLlm(functionDefinition: FunctionDefinition, useCur
     if (!useCursor) {
         vscode.commands.executeCommand("github.copilot.chat.attachSelection");
     } else {
-        vscode.commands.executeCommand("aichat.insertselectionintochat");
+        vscode.commands.executeCommand("composer.startComposerPrompt");
     }
 }
 
