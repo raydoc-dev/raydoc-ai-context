@@ -213,46 +213,14 @@ function getFunctionDefinitionPython(
     doc: vscode.TextDocument,
     symbol: DocumentSymbol
 ): FunctionDefinition {
-    console.log(symbol);
-    const fileText = doc.getText();
-    const lines = fileText.split('\n');
-
-    const startLine = symbol.range.start.line;
-    let endLine = startLine;
-
-    // Determine the indentation level of the start line
-    const startIndentation = lines[startLine].search(/\S/);
-
-    // Look for the end of the function definition
-    for (endLine < lines.length; endLine++;) {
-        const line = lines[endLine];
-
-        if (line.trim() === "") {
-            continue;
-        }
-
-        const currentIndentation = line.search(/\S/);
-
-        // If we're outside the block indentation and it's not a blank line, we've hit the end of the current type
-        if (currentIndentation <= startIndentation && endLine > startLine) {
-            endLine--;
-            break;
-        }
-    }
-
-    // Create the function definition object
-    const functionText = lines.slice(startLine, endLine + 1).join('\n').trim();
-    const filename = vscode.workspace.asRelativePath(doc.fileName);
-    const functionName = symbol.name;
-
     return {
-        functionName,
-        filename,
-        functionText,
+        functionName: symbol.name,
+        filename: vscode.workspace.asRelativePath(doc.fileName),
+        functionText: doc.getText(symbol.range),
         functionSymbol: symbol,
-        startLine,
-        endLine,
-    };
+        startLine: symbol.range.start.line,
+        endLine: symbol.range.end.line,
+    }
 }
 
 function getFunctionDefinitionTypescript(
