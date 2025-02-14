@@ -50,7 +50,7 @@ async function copyContextAtCursorCommandHandler() {
         return;
     }
 
-    const output = contextToString(context);
+    const output = contextToString(context) + '---\n\n\n';
     if (output) {
         await vscode.env.clipboard.writeText(output);
         vscode.window.showInformationMessage('Raydoc: context copied to clipboard!');
@@ -85,15 +85,23 @@ async function sendContextToLlmCommandHandler() {
     // Store the current file's URI to return to it later
     const originalFileUri = doc.uri;
 
+    // Get the configuration for the extension
+    const config = vscode.workspace.getConfiguration('raydoc-context');
+    const useCursor = config.get<boolean>('use-cursor', false);
+
     // Process all function references
-    await selectAndSendToLlm(functionDefinition);
+    await selectAndSendToLlm(functionDefinition, useCursor);
 
     for (const typeDefn of context.typeDefns || []) {
-        await selectAndSendToLlm(typeDefn);
+        await selectAndSendToLlm(typeDefn, useCursor);
     }
 
     for (const referencedFunction of context.referencedFunctions || []) {
-        await selectAndSendToLlm(referencedFunction);
+        await selectAndSendToLlm(referencedFunction, useCursor);
+    }
+
+    if (useCursor) {
+        vscode.commands.executeCommand("workbench.panel.composerViewPane2.view.focus");
     }
 
     // Switch back to the original file and restore cursor position
@@ -109,10 +117,7 @@ async function sendContextToLlmCommandHandler() {
     vscode.window.showInformationMessage('Raydoc: context copied to clipboard and sent to LLM!');
 }
 
-async function selectAndSendToLlm(functionDefinition: FunctionDefinition) {
-    const config = vscode.workspace.getConfiguration('raydoc-context');
-    const useCursor = config.get('use-cursor');
-
+async function selectAndSendToLlm(functionDefinition: FunctionDefinition, useCursor: boolean) {
     // Get the file URI from the function definition (relative to the workspace root)
     const fullFilePath = vscode.workspace.workspaceFolders
         ? vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, functionDefinition.filename).fsPath
@@ -132,9 +137,10 @@ async function selectAndSendToLlm(functionDefinition: FunctionDefinition) {
 
     // Attach the selection to the LLM
     if (!useCursor) {
-        vscode.commands.executeCommand("github.copilot.chat.attachSelection");
+        await vscode.commands.executeCommand("github.copilot.chat.attachSelection");
     } else {
-        vscode.commands.executeCommand("aichat.insertselectionintochat");
+        await vscode.commands.executeCommand("composer.startComposerPrompt");
+        await new Promise(resolve => setTimeout(resolve, 50)); // Wait because cursor was sometimes not adding everything
     }
 }
 

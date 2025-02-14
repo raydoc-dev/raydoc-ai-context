@@ -65,6 +65,9 @@ function getLargestFunctionSymbolForPosition(
             case 'typescript':
                 ({ isFunction, isType } = isFunctionAndTypeTypescript(symbol));
                 break;
+            case 'typescriptreact':
+                ({ isFunction, isType } = isFunctionAndTypeTypescript(symbol));
+                break;
             case 'javascript':
                 ({ isFunction, isType } = isFunctionAndTypeJavascript(symbol));
                 break;
@@ -77,6 +80,13 @@ function getLargestFunctionSymbolForPosition(
             default:
                 break;
         }
+
+        // Check if symbol is inside an enum
+        if (isInsideEnum(symbol, symbols)) {
+            isFunction = false;
+            isType = false;
+        }
+
         if (
             ((isFunction && !findTypes) ||
                 (isType && findTypes)) &&
@@ -91,6 +101,12 @@ function getLargestFunctionSymbolForPosition(
     return largestFunctionSymbol;
 }
 
+function isInsideEnum(symbol: DocumentSymbol, symbols: DocumentSymbol[]): boolean {
+    return symbols.some(parentSymbol => 
+        parentSymbol.kind === SymbolKind.Enum && parentSymbol.range.contains(symbol.range)
+    );
+}
+
 function isFunctionAndTypePython(symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
     const isFunction = symbol.kind === SymbolKind.Function || symbol.kind === SymbolKind.Method || symbol.kind === SymbolKind.Constructor;
     const isType = symbol.kind === SymbolKind.Class || symbol.kind === SymbolKind.Interface;
@@ -98,7 +114,7 @@ function isFunctionAndTypePython(symbol: DocumentSymbol): { isFunction: boolean,
 }
 
 function isFunctionAndTypeTypescript(symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
-    const isFunction = symbol.kind === SymbolKind.Function || symbol.kind === SymbolKind.Method || symbol.kind === SymbolKind.Constructor;
+    const isFunction = symbol.kind === SymbolKind.Function || symbol.kind === SymbolKind.Method || symbol.kind === SymbolKind.Constructor || symbol.kind === SymbolKind.Variable;
     const isType = symbol.kind === SymbolKind.Class || symbol.kind === SymbolKind.Interface || symbol.kind === SymbolKind.Variable;
     return { isFunction, isType };
 }
@@ -152,6 +168,8 @@ function functionDefinitionByLanguage(
             return getFunctionDefinitionPython(doc, functionSymbol);
         case 'typescript':
             return getFunctionDefinitionTypescript(doc, functionSymbol);
+        case 'typescriptreact':
+            return getFunctionDefinitionTypescript(doc, functionSymbol);
         case 'javascript':
             return getFunctionDefinitionJavascript(doc, functionSymbol);
         case 'go':
@@ -174,7 +192,7 @@ function getFunctionDefinitionPython(
         functionSymbol: symbol,
         startLine: symbol.range.start.line,
         endLine: symbol.range.end.line,
-    }
+    };
 }
 
 function getFunctionDefinitionTypescript(
