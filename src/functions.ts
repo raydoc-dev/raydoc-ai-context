@@ -192,7 +192,7 @@ function getFunctionDefinitionPython(
         functionSymbol: symbol,
         startLine: symbol.range.start.line,
         endLine: symbol.range.end.line,
-    }
+    };
 }
 
 function getFunctionDefinitionTypescript(
