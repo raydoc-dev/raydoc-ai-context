@@ -50,7 +50,7 @@ async function copyContextAtCursorCommandHandler() {
         return;
     }
 
-    const output = contextToString(context);
+    const output = contextToString(context) + '---\n\n\n';
     if (output) {
         await vscode.env.clipboard.writeText(output);
         vscode.window.showInformationMessage('Raydoc: context copied to clipboard!');
@@ -137,9 +137,10 @@ async function selectAndSendToLlm(functionDefinition: FunctionDefinition, useCur
 
     // Attach the selection to the LLM
     if (!useCursor) {
-        vscode.commands.executeCommand("github.copilot.chat.attachSelection");
+        await vscode.commands.executeCommand("github.copilot.chat.attachSelection");
     } else {
-        vscode.commands.executeCommand("composer.startComposerPrompt");
+        await vscode.commands.executeCommand("composer.startComposerPrompt");
+        await new Promise(resolve => setTimeout(resolve, 50)); // Wait because cursor was sometimes not adding everything
     }
 }
 
