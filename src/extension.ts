@@ -1,13 +1,15 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import { consolidateContexts, gatherContext } from './context';
 import { RaydocContext } from './types';
 import { getAllFunctionDefinitionsInDoc } from './functions';
-import { codebaseSummaryPrompt, ModelType } from './llm/llm';
+import { codebaseSummaryPrompt, functionSummaryPrompt, ModelType } from './llm/llm';
 import { contextToString, contextToStringLlm } from './toString';
 import { getFunctionDefinition } from './functions';
 import { FunctionDefinition } from './types';
 import { FireworksClient } from './llm/fireworks';
 import { getSecret } from './secrets';
+import path from 'path';
 
 export function activate(context: vscode.ExtensionContext) {
     const copyContextAtCursorCommand = vscode.commands.registerCommand(
@@ -98,11 +100,43 @@ async function copyContextAtCursorCommandHandler() {
 export async function generateProjectDocumentationCommandHandler() {
     vscode.window.showInformationMessage('Generating codebase summary...');
 
+    const llmProvider = vscode.workspace.getConfiguration('raydoc-context').get<string>('llmProvider');
+
+    if (llmProvider === "none") {
+        vscode.window.showErrorMessage('Whoops! Looks like you need to configure an LLM provider. Go to Settings > Raydoc-Context > LLM Provider to set it up.');
+        return;
+    }
+
+    switch (llmProvider) {
+        case "fireworks":
+            if (!process.env.FIREWORKS_API_KEY) {
+                vscode.window.showErrorMessage('Whoops! Looks like you need to configure a Fireworks API key. Go to Settings > Raydoc-Context > Secrets to set it up.');
+                return;
+            }
+            break;
+
+        case "openai":
+            if (!process.env.OPENAI_API_KEY) {
+                vscode.window.showErrorMessage('Whoops! Looks like you need to configure an OpenAI API key. Go to Settings > Raydoc-Context > Secrets to set it up.');
+                return;
+            }
+            break;
+
+        case "raydoc":
+            if (!process.env.RAYDOC_API_KEY) {
+                vscode.window.showErrorMessage('Whoops! Looks like you need to configure a Raydoc API key. Go to Settings > Raydoc-Context > Secrets to set it up.');
+                return;
+            }
+            break;
+    }
+
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
         vscode.window.showWarningMessage('No workspace folder found.');
         return;
     }
+
+    const rootPath = workspaceFolders[0].uri.fsPath;
 
     // Exclude common folders that are intentionally ignored (like node_modules and .git)
     const excludePaths = vscode.workspace.getConfiguration('raydoc-context').get<string[]>('ignoreTypePaths') || [];
@@ -142,9 +176,30 @@ export async function generateProjectDocumentationCommandHandler() {
 
         const codebaseSummary = await llmClient.query(summaryPrompt, ModelType.LargeLlm);
 
+        const functionSummaries: string[] = [];
+
+        for (const ctx of contexts) {
+            const functionPrompt = functionSummaryPrompt(ctx);
+            const functionSummary = await llmClient.query(functionPrompt, ModelType.SmallLlm);
+            functionSummaries.push(functionSummary);
+        }
+
         if (codebaseSummary) {
-            await vscode.env.clipboard.writeText(codebaseSummary);
-            vscode.window.showInformationMessage('Raydoc: codebase summary copied to clipboard!');
+            const identifier = Date.now().toString();
+
+            const dir = path.join(rootPath, "docs", "generated");
+            const filePath = path.join(dir, `codebase-summary-${identifier}.md`);
+
+            await fs.promises.mkdir(dir, { recursive: true });
+
+            await fs.promises.writeFile(filePath, codebaseSummary, 'utf8');
+
+            for (const functionSummary of functionSummaries) {
+                // append function summaries to the same file
+                await fs.promises.appendFile(filePath, functionSummary, 'utf8');
+            }
+
+            vscode.window.showInformationMessage(`Raydoc: codebase summary written to ${filePath}!`);
         } else {
             vscode.window.showWarningMessage('No codebase summary available.');
         }

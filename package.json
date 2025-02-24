@@ -71,6 +71,17 @@
                     ],
                     "description": "Paths that should ignored when retrieving types."
                 },
+                "raydoc-context.llmProvider": {
+                    "type": "string",
+                    "default": "none",
+                    "enum": [
+                        "none",
+                        "fireworks",
+                        "raydoc",
+                        "openai"
+                    ],
+                    "description": "The LLM provider to use to generate technical documentation"
+                },
                 "raydoc-context.secrets.fireworksApiKey": {
                     "type": "string",
                     "default": "",
