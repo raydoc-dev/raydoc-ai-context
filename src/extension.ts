@@ -24,6 +24,26 @@ export function activate(context: vscode.ExtensionContext) {
     if (!userId) {
         userId = uuidv4();
         context.globalState.update(USER_ID_KEY, userId);
+
+        // This is the first time the extension is being used, we can also check to see if we are using Cursor
+        // Automatically detect if we're running in Cursor
+        const isCursorDetected = isCursor();
+        
+        // Get the configuration and update it based on detection
+        const config = vscode.workspace.getConfiguration('raydoc-context');
+        
+        // Only update the configuration if it doesn't match what we detected
+        if (config.get<boolean>('use-cursor', false) !== isCursorDetected) {
+            // Update the configuration to match the detected editor
+            (async () => {
+                try {
+                    await config.update('use-cursor', isCursorDetected, vscode.ConfigurationTarget.Global);
+                    console.log(`Automatically set use-cursor to ${isCursorDetected} based on detection`);
+                } catch (err: unknown) {
+                    console.error('Failed to update use-cursor setting:', err);
+                }
+            })();
+        }
     }
 
     const copyContextAtCursorCommand = vscode.commands.registerCommand(
@@ -92,7 +112,7 @@ async function sendContextToLlmCommandHandler() {
 
     const position = editor.selection.active; // Store cursor position
     const doc = editor.document;
-    const functionDefinition = await getFunctionDefinition(doc, position);
+    const functionDefinition = await getFunctionDefinition(doc, position, false, true);
 
     if (!functionDefinition) {
         vscode.window.showErrorMessage('No function definition found for the current cursor position.');
@@ -178,3 +198,11 @@ function getSelectionFromFunctionDefinition(doc: vscode.TextDocument, functionDe
         new vscode.Position(functionDefinition.endLine, doc.lineAt(functionDefinition.endLine).text.length)
     );
 }
+
+function isCursor(): boolean {
+    // Check the application name
+    const appName = vscode.env.appName;
+    
+    // Cursor will have "Cursor" in its application name
+    return appName.includes('Cursor');
+  }

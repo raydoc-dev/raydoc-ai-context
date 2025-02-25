@@ -5,7 +5,8 @@ import { FunctionDefinition } from './types';
 export async function getFunctionDefinition(
     doc: vscode.TextDocument,
     position: vscode.Position,
-    findTypes = false
+    findTypes = false,
+    expandToFunction = false,
 ): Promise<FunctionDefinition | undefined> {
     // 1) Get all the symbols in the document
     let symbols = await vscode.commands.executeCommand<DocumentSymbol[]>(
@@ -21,10 +22,18 @@ export async function getFunctionDefinition(
     // Flatten the symbols to make processing easier and more standardized
     symbols = flattenDocumentSymbols(symbols);
 
-    // 2) Find the largest function symbol that contains the cursor position
-    const functionSymbol = getLargestFunctionSymbolForPosition(doc, symbols, position, findTypes);
+    // 2) Find the symbol that contains the cursor position
+    let functionSymbol: DocumentSymbol | undefined;
+    
+    if (expandToFunction) {
+        // Use the existing behavior to get the largest function symbol
+        functionSymbol = getLargestFunctionSymbolForPosition(doc, symbols, position, findTypes);
+    } else {
+        // Get any symbol at the position, regardless of type
+        functionSymbol = getSymbolAtPosition(doc, symbols, position, findTypes);
+    }
 
-    // If we didn't find a function symbol, we can't proceed
+    // If we didn't find a symbol, we can't proceed
     if (!functionSymbol) {
         return undefined;
     }
@@ -55,41 +64,8 @@ function getLargestFunctionSymbolForPosition(
     let largestFunctionSymbol: DocumentSymbol | undefined;
 
     for (const symbol of symbols) {
-        let isFunction = false;
-        let isType = false;
-
-        switch (doc.languageId) {
-            case 'python':
-                ({ isFunction, isType } = isFunctionAndTypePython(symbol));
-                break;
-            case 'typescript':
-                ({ isFunction, isType } = isFunctionAndTypeTypescript(symbol));
-                break;
-            case 'typescriptreact':
-                ({ isFunction, isType } = isFunctionAndTypeTypescript(symbol));
-                break;
-            case 'javascript':
-                ({ isFunction, isType } = isFunctionAndTypeJavascript(symbol));
-                break;
-            case 'go':
-                ({ isFunction, isType } = isFunctionAndTypeGo(symbol));
-                break;
-            case 'cpp':
-                ({ isFunction, isType } = isFunctionAndTypeCpp(symbol));
-                break;
-            default:
-                break;
-        }
-
-        // Check if symbol is inside an enum
-        if (isInsideEnum(symbol, symbols)) {
-            isFunction = false;
-            isType = false;
-        }
-
         if (
-            ((isFunction && !findTypes) ||
-                (isType && findTypes)) &&
+            isValidSymbol(doc, symbols, symbol, findTypes) &&
             symbol.range.contains(position)
         ) {
             if (!largestFunctionSymbol || isLargerRange(symbol.range, largestFunctionSymbol.range)) {
@@ -107,20 +83,158 @@ function isInsideEnum(symbol: DocumentSymbol, symbols: DocumentSymbol[]): boolea
     );
 }
 
+/**
+ * Gets any symbol at the given position, regardless of type
+ */
+function getSymbolAtPosition(
+    doc: vscode.TextDocument,
+    symbols: DocumentSymbol[],
+    position: vscode.Position,
+    findTypes: boolean,
+): DocumentSymbol | undefined {
+    // Find the smallest symbol that contains the position
+    let smallestSymbol: DocumentSymbol | undefined;
+
+    for (const symbol of symbols) {
+        if (symbol.range.contains(position)) {
+            // If we haven't found a symbol yet, or this one is smaller than the current one
+            if (!smallestSymbol || isSmallestRange(symbol.range, smallestSymbol.range)) {
+                smallestSymbol = symbol;
+            }
+        }
+    }
+
+    if (smallestSymbol && !isValidSymbol(doc, symbols, smallestSymbol, findTypes)) {
+        return undefined;
+    }
+
+    if (smallestSymbol && smallestSymbol.range.start.line !== position.line) {
+        return undefined;
+    }
+
+    return smallestSymbol;
+}
+
+/**
+ * Helper function to determine if range1 is smaller than range2
+ */
+function isSmallestRange(range1: vscode.Range, range2: vscode.Range): boolean {
+    const size1 = getRangeSize(range1);
+    const size2 = getRangeSize(range2);
+    return size1 < size2;
+}
+
+function isValidSymbol(doc: vscode.TextDocument, symbols: DocumentSymbol[], symbol: DocumentSymbol, findTypes: boolean): boolean {
+    let isFunction = false;
+    let isType = false;
+
+    ({ isFunction, isType } = isFunctionAndType(doc, symbol));
+
+    // Check if symbol is inside an enum
+    if (isInsideEnum(symbol, symbols)) {
+        isFunction = false;
+        isType = false;
+    }
+
+    return ((isFunction && !findTypes) ||
+                (isType && findTypes));
+}
+
+function isFunctionAndType(doc: vscode.TextDocument, symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
+    let isFunction = false;
+    let isType = false;
+
+    switch (doc.languageId) {
+        case 'python':
+            ({ isFunction, isType } = isFunctionAndTypePython(symbol));
+            break;
+        case 'typescript':
+            ({ isFunction, isType } = isFunctionAndTypeTypescript(symbol, doc));
+            break;
+        case 'typescriptreact':
+            ({ isFunction, isType } = isFunctionAndTypeTypescript(symbol, doc));
+            break;
+        case 'javascript':
+            ({ isFunction, isType } = isFunctionAndTypeJavascript(symbol, doc));
+            break;
+        case 'javascriptreact':
+            ({ isFunction, isType } = isFunctionAndTypeJavascript(symbol, doc));
+            break;
+        case 'go':
+            ({ isFunction, isType } = isFunctionAndTypeGo(symbol));
+            break;
+        case 'cpp':
+            ({ isFunction, isType } = isFunctionAndTypeCpp(symbol));
+            break;
+        default:
+            break;
+    }
+
+    return { isFunction, isType };
+}
+
 function isFunctionAndTypePython(symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
     const isFunction = symbol.kind === SymbolKind.Function || symbol.kind === SymbolKind.Method || symbol.kind === SymbolKind.Constructor;
     const isType = symbol.kind === SymbolKind.Class || symbol.kind === SymbolKind.Interface;
     return { isFunction, isType };
 }
 
-function isFunctionAndTypeTypescript(symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
-    const isFunction = symbol.kind === SymbolKind.Function || symbol.kind === SymbolKind.Method || symbol.kind === SymbolKind.Constructor || symbol.kind === SymbolKind.Variable;
-    const isType = symbol.kind === SymbolKind.Class || symbol.kind === SymbolKind.Interface || symbol.kind === SymbolKind.Variable;
+function isArrowFunction(doc: vscode.TextDocument, symbol: DocumentSymbol): boolean {
+    if (symbol.kind !== SymbolKind.Variable) {
+        return false;
+    }
+    
+    const text = doc.getText(symbol.range);
+
+    // This removes line breaks and extra whitespace to simplify pattern matching
+    const normalizedText = text.replace(/\s+/g, ' ').trim();
+    
+    // Check if we're in a TypeScript file
+    const isTypeScript = doc.languageId === 'typescript' || doc.languageId === 'typescriptreact';
+    
+    // More comprehensive regex that handles various edge cases
+    let arrowFunctionRegex;
+    
+    if (isTypeScript) {
+        // TypeScript regex with type annotations
+        arrowFunctionRegex = /(?:export\s+)?(?:const|let|var)?\s*([a-zA-Z_$][a-zA-Z0-9_$]*)\s*(?:<[^>]*>)?(?::\s*[^=]+)?\s*=\s*(?:<[^>]*>)?(?:\([^)]*\)|[a-zA-Z_$][a-zA-Z0-9_$]*)\s*(?::\s*[^=]+)?\s*=>/;
+    } else {
+        // JavaScript regex without type annotations
+        arrowFunctionRegex = /(?:export\s+)?(?:const|let|var)?\s*([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*(?:\([^)]*\)|[a-zA-Z_$][a-zA-Z0-9_$]*)\s*=>/;
+    }
+
+    return arrowFunctionRegex.test(normalizedText);
+}
+
+function isTypeDefinition(doc: vscode.TextDocument, symbol: DocumentSymbol): boolean {
+    if (symbol.kind !== SymbolKind.Variable) {
+        return false;
+    }
+    const text = doc.getText(symbol.range);
+    // Match type keyword followed by name and equals
+    const typeDefRegex = /^\s*(?:export\s+)?type\s+[A-Za-z_][A-Za-z0-9_]*\s*=/;
+    return typeDefRegex.test(text);
+}
+
+function isFunctionAndTypeTypescript(symbol: DocumentSymbol, doc: vscode.TextDocument): { isFunction: boolean, isType: boolean } {
+    const isFunction = 
+        symbol.kind === SymbolKind.Function || 
+        symbol.kind === SymbolKind.Method || 
+        symbol.kind === SymbolKind.Constructor || 
+        isArrowFunction(doc, symbol);
+    const isType = 
+        symbol.kind === SymbolKind.Class || 
+        symbol.kind === SymbolKind.Interface || 
+        isTypeDefinition(doc, symbol);
     return { isFunction, isType };
 }
 
-function isFunctionAndTypeJavascript(symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
-    const isFunction = symbol.kind === SymbolKind.Function || symbol.kind === SymbolKind.Method || symbol.kind === SymbolKind.Constructor;
+function isFunctionAndTypeJavascript(symbol: DocumentSymbol, doc: vscode.TextDocument): { isFunction: boolean, isType: boolean } {
+    const isFunction = 
+        symbol.kind === SymbolKind.Function || 
+        symbol.kind === SymbolKind.Method || 
+        symbol.kind === SymbolKind.Constructor || 
+        isArrowFunction(doc, symbol);
     const isType = symbol.kind === SymbolKind.Class || symbol.kind === SymbolKind.Interface || symbol.kind === SymbolKind.Variable;
     return { isFunction, isType };
 }
@@ -171,6 +285,8 @@ function functionDefinitionByLanguage(
         case 'typescriptreact':
             return getFunctionDefinitionTypescript(doc, functionSymbol);
         case 'javascript':
+            return getFunctionDefinitionJavascript(doc, functionSymbol);
+        case 'javascriptreact':
             return getFunctionDefinitionJavascript(doc, functionSymbol);
         case 'go':
             return getFunctionDefinitionGo(doc, functionSymbol);
