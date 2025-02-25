@@ -98,17 +98,86 @@ async function getTypeDefinitionsForPosition(
         return (locations || []).filter(loc => loc && loc.range && !isLocationInsideFunction(loc));
     };
 
-    // Run providers and collect only relevant locations
-    let typeLocations = await getFilteredLocations('vscode.executeImplementationProvider');
-    typesDefinitions.push(...await getTypeDefinitionFromLocations(typeLocations, returnTypes));
+    // Convert mixed location array to Location[] for compatibility
+    let typeLocations = await getAllDefinitions(document, position);
+    let locationArray = typeLocations.map(loc => {
+        if ('targetUri' in loc) {
+            // This is a LocationLink
+            return new vscode.Location(loc.targetUri, loc.targetRange);
+        }
+        // This is already a Location
+        return loc;
+    });
 
-    typeLocations = await getFilteredLocations('vscode.executeDefinitionProvider');
-    typesDefinitions.push(...await getTypeDefinitionFromLocations(typeLocations, returnTypes));
-
-    typeLocations = await getFilteredLocations('vscode.executeTypeDefinitionProvider');
-    typesDefinitions.push(...await getTypeDefinitionFromLocations(typeLocations, returnTypes));
+    typesDefinitions.push(...await getTypeDefinitionFromLocations(locationArray, returnTypes));
+    
 
     return typesDefinitions;
+}
+
+async function getAllDefinitions(
+    document: vscode.TextDocument,
+    position: vscode.Position
+): Promise<(vscode.Location | vscode.LocationLink)[]> {
+    // Use the executeDefinitionProvider command to get results from all providers
+    const definitionResults = await vscode.commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>(
+        'vscode.executeDefinitionProvider', 
+        document.uri, 
+        position
+    ) || [];
+    
+    // Get declaration results as fallback/additional sources
+    const declarationResults = await vscode.commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>(
+        'vscode.executeDeclarationProvider', 
+        document.uri, 
+        position
+    ) || [];
+    
+    // Get type definition results
+    const typeDefinitionResults = await vscode.commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>(
+        'vscode.executeTypeDefinitionProvider', 
+        document.uri, 
+        position
+    ) || [];
+    
+    // Combine all results
+    const allResults = [
+        ...definitionResults,
+        ...declarationResults,
+        ...typeDefinitionResults
+    ];
+    
+    // Remove duplicates
+    return removeDuplicateLocations(allResults);
+}
+
+// Helper function to remove duplicate locations
+function removeDuplicateLocations(
+    locations: (vscode.Location | vscode.LocationLink)[]
+): (vscode.Location | vscode.LocationLink)[] {
+    const uniqueLocations = new Map<string, vscode.Location | vscode.LocationLink>();
+    
+    locations.forEach(location => {
+        let uri: vscode.Uri;
+        let range: vscode.Range;
+        
+        if (location instanceof vscode.Location) {
+            uri = location.uri;
+            range = location.range;
+        } else {
+            // LocationLink case
+            uri = location.targetUri;
+            range = location.targetRange;
+        }
+        
+        const key = `${uri.toString()}:${range.start.line}:${range.start.character}:${range.end.line}:${range.end.character}`;
+        
+        if (!uniqueLocations.has(key)) {
+            uniqueLocations.set(key, location);
+        }
+    });
+    
+    return Array.from(uniqueLocations.values());
 }
 
 async function getTypeDefinitionFromLocations(

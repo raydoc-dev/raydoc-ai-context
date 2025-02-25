@@ -5,7 +5,8 @@ import { FunctionDefinition } from './types';
 export async function getFunctionDefinition(
     doc: vscode.TextDocument,
     position: vscode.Position,
-    findTypes = false
+    findTypes = false,
+    expandToFunction = false,
 ): Promise<FunctionDefinition | undefined> {
     // 1) Get all the symbols in the document
     let symbols = await vscode.commands.executeCommand<DocumentSymbol[]>(
@@ -52,6 +53,13 @@ function getLargestFunctionSymbolForPosition(
     position: vscode.Position,
     findTypes: boolean,
 ): DocumentSymbol | undefined {
+    if (position.line === 118 && position.character === 22) {
+        console.log("------");
+        console.log("");
+        console.log("Mark");
+        console.log("");
+        console.log("------");
+    }
     let largestFunctionSymbol: DocumentSymbol | undefined;
 
     for (const symbol of symbols) {
@@ -63,10 +71,10 @@ function getLargestFunctionSymbolForPosition(
                 ({ isFunction, isType } = isFunctionAndTypePython(symbol));
                 break;
             case 'typescript':
-                ({ isFunction, isType } = isFunctionAndTypeTypescript(symbol));
+                ({ isFunction, isType } = isFunctionAndTypeTypescript(symbol, doc));
                 break;
             case 'typescriptreact':
-                ({ isFunction, isType } = isFunctionAndTypeTypescript(symbol));
+                ({ isFunction, isType } = isFunctionAndTypeTypescript(symbol, doc));
                 break;
             case 'javascript':
                 ({ isFunction, isType } = isFunctionAndTypeJavascript(symbol));
@@ -113,9 +121,46 @@ function isFunctionAndTypePython(symbol: DocumentSymbol): { isFunction: boolean,
     return { isFunction, isType };
 }
 
-function isFunctionAndTypeTypescript(symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
-    const isFunction = symbol.kind === SymbolKind.Function || symbol.kind === SymbolKind.Method || symbol.kind === SymbolKind.Constructor || symbol.kind === SymbolKind.Variable;
-    const isType = symbol.kind === SymbolKind.Class || symbol.kind === SymbolKind.Interface || symbol.kind === SymbolKind.Variable;
+function isArrowFunction(doc: vscode.TextDocument, symbol: DocumentSymbol): boolean {
+    if (symbol.kind !== SymbolKind.Variable) {
+        return false;
+    }
+    
+    const text = doc.getText(symbol.range);
+    
+    // This removes line breaks and extra whitespace to simplify pattern matching
+    const normalizedText = text.replace(/\s+/g, ' ').trim();
+    
+    // More comprehensive regex that handles various edge cases
+    const arrowFunctionRegex = /(?:export\s+)?(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*(?:<[^>]*>)?(?::\s*[^=]+)?\s*=\s*(?:<[^>]*>)?(?:\([^)]*\)|[a-zA-Z_$][a-zA-Z0-9_$]*)\s*(?::\s*[^=]+)?\s*=>/;
+    
+    return arrowFunctionRegex.test(normalizedText);
+}
+
+function isTypeDefinition(doc: vscode.TextDocument, symbol: DocumentSymbol): boolean {
+    if (symbol.kind !== SymbolKind.Variable) {
+        return false;
+    }
+    const text = doc.getText(symbol.range);
+    // Match type keyword followed by name and equals
+    const typeDefRegex = /^\s*(?:export\s+)?type\s+[A-Za-z_][A-Za-z0-9_]*\s*=/;
+    return typeDefRegex.test(text);
+}
+
+function isFunctionAndTypeTypescript(symbol: DocumentSymbol, doc: vscode.TextDocument): { isFunction: boolean, isType: boolean } {
+    if (symbol.name === 'MedicationRequestTable') {
+        console.log(symbol);
+        console.log(isArrowFunction(doc, symbol));
+    }
+    const isFunction = 
+        symbol.kind === SymbolKind.Function || 
+        symbol.kind === SymbolKind.Method || 
+        symbol.kind === SymbolKind.Constructor || 
+        isArrowFunction(doc, symbol);
+    const isType = 
+        symbol.kind === SymbolKind.Class || 
+        symbol.kind === SymbolKind.Interface || 
+        isTypeDefinition(doc, symbol);
     return { isFunction, isType };
 }
 
