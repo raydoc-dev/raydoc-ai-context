@@ -9,7 +9,8 @@ AI can be a powerful coding assistant—but only if it understands your code. To
 So we built **Raydoc**, a VSCode extension that **automates context gathering** and stops AI from making things up.  
 
 ### 🚀 How It Works  
-- **One Shortcut, Instant Context** – Press `Cmd+Shift+C` (`Ctl+Shift+C` on Windows/Linux) to copy all relevant context for your cursor.  
+- **One Shortcut, Instant Context** – Press `Cmd+Shift+C` (`Ctl+Shift+C` on Windows/Linux) to copy all relevant context for your cursor.
+- **Add Code to Cursor/Copilot Chat** - Press `Cmd+Option+I` (`Ctl+Alt+I` on Windows/Linux) to push the context for your codeblock directly into Cursor or GitHub Copilot Chat.
 - **More Than Just Code Snippets** – Includes function definitions, type info, dependencies, and surrounding logic.  
 - **Designed for AI** – Gives Large Language Models (LLMs) what they need to generate **accurate, informed responses** instead of wild guesses.  
 

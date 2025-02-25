@@ -3,7 +3,7 @@
     "displayName": "Raydoc AI Context",
     "publisher": "raydoc",
     "description": "No more AI hallucinations. Just real answers from your real code",
-    "version": "0.1.15",
+    "version": "0.1.16",
     "icon": "icon.png",
     "engines": {
         "vscode": "^1.80.0"
@@ -40,8 +40,8 @@
             },
             {
                 "command": "raydoc-context.sendContextToLlm",
-                "key": "ctrl+alt+shift+l",
-                "mac": "cmd+alt+shift+l",
+                "key": "ctrl+alt+i",
+                "mac": "cmd+alt+i",
                 "when": "editorTextFocus"
             }
         ],

@@ -33,11 +33,6 @@ export async function getFunctionDefinition(
         functionSymbol = getSymbolAtPosition(doc, symbols, position, findTypes);
     }
 
-    if (functionSymbol?.name === 'consume_battery') {
-        console.log(functionSymbol);
-        console.log(position);
-    }
-
     // If we didn't find a symbol, we can't proceed
     if (!functionSymbol) {
         return undefined;
@@ -113,6 +108,10 @@ function getSymbolAtPosition(
         return undefined;
     }
 
+    if (smallestSymbol && smallestSymbol.range.start.line !== position.line) {
+        return undefined;
+    }
+
     return smallestSymbol;
 }
 
@@ -156,7 +155,10 @@ function isFunctionAndType(doc: vscode.TextDocument, symbol: DocumentSymbol): { 
             ({ isFunction, isType } = isFunctionAndTypeTypescript(symbol, doc));
             break;
         case 'javascript':
-            ({ isFunction, isType } = isFunctionAndTypeJavascript(symbol));
+            ({ isFunction, isType } = isFunctionAndTypeJavascript(symbol, doc));
+            break;
+        case 'javascriptreact':
+            ({ isFunction, isType } = isFunctionAndTypeJavascript(symbol, doc));
             break;
         case 'go':
             ({ isFunction, isType } = isFunctionAndTypeGo(symbol));
@@ -183,13 +185,24 @@ function isArrowFunction(doc: vscode.TextDocument, symbol: DocumentSymbol): bool
     }
     
     const text = doc.getText(symbol.range);
-    
+
     // This removes line breaks and extra whitespace to simplify pattern matching
     const normalizedText = text.replace(/\s+/g, ' ').trim();
     
-    // More comprehensive regex that handles various edge cases
-    const arrowFunctionRegex = /(?:export\s+)?(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*(?:<[^>]*>)?(?::\s*[^=]+)?\s*=\s*(?:<[^>]*>)?(?:\([^)]*\)|[a-zA-Z_$][a-zA-Z0-9_$]*)\s*(?::\s*[^=]+)?\s*=>/;
+    // Check if we're in a TypeScript file
+    const isTypeScript = doc.languageId === 'typescript' || doc.languageId === 'typescriptreact';
     
+    // More comprehensive regex that handles various edge cases
+    let arrowFunctionRegex;
+    
+    if (isTypeScript) {
+        // TypeScript regex with type annotations
+        arrowFunctionRegex = /(?:export\s+)?(?:const|let|var)?\s*([a-zA-Z_$][a-zA-Z0-9_$]*)\s*(?:<[^>]*>)?(?::\s*[^=]+)?\s*=\s*(?:<[^>]*>)?(?:\([^)]*\)|[a-zA-Z_$][a-zA-Z0-9_$]*)\s*(?::\s*[^=]+)?\s*=>/;
+    } else {
+        // JavaScript regex without type annotations
+        arrowFunctionRegex = /(?:export\s+)?(?:const|let|var)?\s*([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*(?:\([^)]*\)|[a-zA-Z_$][a-zA-Z0-9_$]*)\s*=>/;
+    }
+
     return arrowFunctionRegex.test(normalizedText);
 }
 
@@ -204,10 +217,6 @@ function isTypeDefinition(doc: vscode.TextDocument, symbol: DocumentSymbol): boo
 }
 
 function isFunctionAndTypeTypescript(symbol: DocumentSymbol, doc: vscode.TextDocument): { isFunction: boolean, isType: boolean } {
-    if (symbol.name === 'MedicationRequestTable') {
-        console.log(symbol);
-        console.log(isArrowFunction(doc, symbol));
-    }
     const isFunction = 
         symbol.kind === SymbolKind.Function || 
         symbol.kind === SymbolKind.Method || 
@@ -220,8 +229,12 @@ function isFunctionAndTypeTypescript(symbol: DocumentSymbol, doc: vscode.TextDoc
     return { isFunction, isType };
 }
 
-function isFunctionAndTypeJavascript(symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
-    const isFunction = symbol.kind === SymbolKind.Function || symbol.kind === SymbolKind.Method || symbol.kind === SymbolKind.Constructor;
+function isFunctionAndTypeJavascript(symbol: DocumentSymbol, doc: vscode.TextDocument): { isFunction: boolean, isType: boolean } {
+    const isFunction = 
+        symbol.kind === SymbolKind.Function || 
+        symbol.kind === SymbolKind.Method || 
+        symbol.kind === SymbolKind.Constructor || 
+        isArrowFunction(doc, symbol);
     const isType = symbol.kind === SymbolKind.Class || symbol.kind === SymbolKind.Interface || symbol.kind === SymbolKind.Variable;
     return { isFunction, isType };
 }
@@ -272,6 +285,8 @@ function functionDefinitionByLanguage(
         case 'typescriptreact':
             return getFunctionDefinitionTypescript(doc, functionSymbol);
         case 'javascript':
+            return getFunctionDefinitionJavascript(doc, functionSymbol);
+        case 'javascriptreact':
             return getFunctionDefinitionJavascript(doc, functionSymbol);
         case 'go':
             return getFunctionDefinitionGo(doc, functionSymbol);
