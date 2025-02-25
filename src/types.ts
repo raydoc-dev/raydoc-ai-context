@@ -23,7 +23,6 @@ export type FunctionDefinition = {
     functionSymbol: DocumentSymbol;
     startLine: number;
     endLine: number;
-    referenceingSymbol?: DocumentSymbol;
 }
 
 export type Node = {

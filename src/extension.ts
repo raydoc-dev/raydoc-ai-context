@@ -92,7 +92,7 @@ async function sendContextToLlmCommandHandler() {
 
     const position = editor.selection.active; // Store cursor position
     const doc = editor.document;
-    const functionDefinition = await getFunctionDefinition(doc, position);
+    const functionDefinition = await getFunctionDefinition(doc, position, false, true);
 
     if (!functionDefinition) {
         vscode.window.showErrorMessage('No function definition found for the current cursor position.');

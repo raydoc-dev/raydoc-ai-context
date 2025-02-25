@@ -23,7 +23,7 @@ export async function gatherContext(
     const runtimeVersion = await getLanguageVersion(doc.languageId);
     const runtimePath = '';
     const packages = getPackageDependencies(doc.languageId);
-    const functionDefn = await getFunctionDefinition(doc, position);
+    const functionDefn = await getFunctionDefinition(doc, position, false, true);
 
     var typeDefns: FunctionDefinition[] = [];
     if (functionDefn) {

@@ -22,10 +22,23 @@ export async function getFunctionDefinition(
     // Flatten the symbols to make processing easier and more standardized
     symbols = flattenDocumentSymbols(symbols);
 
-    // 2) Find the largest function symbol that contains the cursor position
-    const functionSymbol = getLargestFunctionSymbolForPosition(doc, symbols, position, findTypes);
+    // 2) Find the symbol that contains the cursor position
+    let functionSymbol: DocumentSymbol | undefined;
+    
+    if (expandToFunction) {
+        // Use the existing behavior to get the largest function symbol
+        functionSymbol = getLargestFunctionSymbolForPosition(doc, symbols, position, findTypes);
+    } else {
+        // Get any symbol at the position, regardless of type
+        functionSymbol = getSymbolAtPosition(doc, symbols, position, findTypes);
+    }
 
-    // If we didn't find a function symbol, we can't proceed
+    if (functionSymbol?.name === 'consume_battery') {
+        console.log(functionSymbol);
+        console.log(position);
+    }
+
+    // If we didn't find a symbol, we can't proceed
     if (!functionSymbol) {
         return undefined;
     }
@@ -53,51 +66,11 @@ function getLargestFunctionSymbolForPosition(
     position: vscode.Position,
     findTypes: boolean,
 ): DocumentSymbol | undefined {
-    if (position.line === 118 && position.character === 22) {
-        console.log("------");
-        console.log("");
-        console.log("Mark");
-        console.log("");
-        console.log("------");
-    }
     let largestFunctionSymbol: DocumentSymbol | undefined;
 
     for (const symbol of symbols) {
-        let isFunction = false;
-        let isType = false;
-
-        switch (doc.languageId) {
-            case 'python':
-                ({ isFunction, isType } = isFunctionAndTypePython(symbol));
-                break;
-            case 'typescript':
-                ({ isFunction, isType } = isFunctionAndTypeTypescript(symbol, doc));
-                break;
-            case 'typescriptreact':
-                ({ isFunction, isType } = isFunctionAndTypeTypescript(symbol, doc));
-                break;
-            case 'javascript':
-                ({ isFunction, isType } = isFunctionAndTypeJavascript(symbol));
-                break;
-            case 'go':
-                ({ isFunction, isType } = isFunctionAndTypeGo(symbol));
-                break;
-            case 'cpp':
-                ({ isFunction, isType } = isFunctionAndTypeCpp(symbol));
-                break;
-            default:
-                break;
-        }
-
-        // Check if symbol is inside an enum
-        if (isInsideEnum(symbol, symbols)) {
-            isFunction = false;
-            isType = false;
-        }
-
         if (
-            ((isFunction && !findTypes) ||
-                (isType && findTypes)) &&
+            isValidSymbol(doc, symbols, symbol, findTypes) &&
             symbol.range.contains(position)
         ) {
             if (!largestFunctionSymbol || isLargerRange(symbol.range, largestFunctionSymbol.range)) {
@@ -113,6 +86,89 @@ function isInsideEnum(symbol: DocumentSymbol, symbols: DocumentSymbol[]): boolea
     return symbols.some(parentSymbol => 
         parentSymbol.kind === SymbolKind.Enum && parentSymbol.range.contains(symbol.range)
     );
+}
+
+/**
+ * Gets any symbol at the given position, regardless of type
+ */
+function getSymbolAtPosition(
+    doc: vscode.TextDocument,
+    symbols: DocumentSymbol[],
+    position: vscode.Position,
+    findTypes: boolean,
+): DocumentSymbol | undefined {
+    // Find the smallest symbol that contains the position
+    let smallestSymbol: DocumentSymbol | undefined;
+
+    for (const symbol of symbols) {
+        if (symbol.range.contains(position)) {
+            // If we haven't found a symbol yet, or this one is smaller than the current one
+            if (!smallestSymbol || isSmallestRange(symbol.range, smallestSymbol.range)) {
+                smallestSymbol = symbol;
+            }
+        }
+    }
+
+    if (smallestSymbol && !isValidSymbol(doc, symbols, smallestSymbol, findTypes)) {
+        return undefined;
+    }
+
+    return smallestSymbol;
+}
+
+/**
+ * Helper function to determine if range1 is smaller than range2
+ */
+function isSmallestRange(range1: vscode.Range, range2: vscode.Range): boolean {
+    const size1 = getRangeSize(range1);
+    const size2 = getRangeSize(range2);
+    return size1 < size2;
+}
+
+function isValidSymbol(doc: vscode.TextDocument, symbols: DocumentSymbol[], symbol: DocumentSymbol, findTypes: boolean): boolean {
+    let isFunction = false;
+    let isType = false;
+
+    ({ isFunction, isType } = isFunctionAndType(doc, symbol));
+
+    // Check if symbol is inside an enum
+    if (isInsideEnum(symbol, symbols)) {
+        isFunction = false;
+        isType = false;
+    }
+
+    return ((isFunction && !findTypes) ||
+                (isType && findTypes));
+}
+
+function isFunctionAndType(doc: vscode.TextDocument, symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
+    let isFunction = false;
+    let isType = false;
+
+    switch (doc.languageId) {
+        case 'python':
+            ({ isFunction, isType } = isFunctionAndTypePython(symbol));
+            break;
+        case 'typescript':
+            ({ isFunction, isType } = isFunctionAndTypeTypescript(symbol, doc));
+            break;
+        case 'typescriptreact':
+            ({ isFunction, isType } = isFunctionAndTypeTypescript(symbol, doc));
+            break;
+        case 'javascript':
+            ({ isFunction, isType } = isFunctionAndTypeJavascript(symbol));
+            break;
+        case 'go':
+            ({ isFunction, isType } = isFunctionAndTypeGo(symbol));
+            break;
+        case 'cpp':
+            ({ isFunction, isType } = isFunctionAndTypeCpp(symbol));
+            break;
+        default:
+            break;
+    }
+
+    return { isFunction, isType };
 }
 
 function isFunctionAndTypePython(symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
