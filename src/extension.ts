@@ -1,10 +1,31 @@
 import * as vscode from 'vscode';
+import { PostHog } from 'posthog-node';
 import { contextToString, contextToStringLlm } from './toString';
 import { gatherContext } from './context';
 import { getFunctionDefinition } from './functions';
 import { FunctionDefinition } from './types';
+import { v4 as uuidv4 } from 'uuid';
+
+let analyticsClient: PostHog;
+let userId: string | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
+    analyticsClient = new PostHog(
+        'phc_Rv9pNJA7chv1QR27K0jg2s1Bwah2PDsZroMEI1Usic7',
+        { host: 'https://us.i.posthog.com' }
+    );
+
+    const USER_ID_KEY = 'RaydocUserId';
+
+    // Retrieve the stored UUID
+    userId = context.globalState.get<string>(USER_ID_KEY);
+
+    // If UUID doesn't exist, generate and store it
+    if (!userId) {
+        userId = uuidv4();
+        context.globalState.update(USER_ID_KEY, userId);
+    }
+
     const copyContextAtCursorCommand = vscode.commands.registerCommand(
         'raydoc-context.copyContextAtCursor',
         async () => { copyContextAtCursorCommandHandler(); }
@@ -22,7 +43,7 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-    // Cleanup if needed
+    analyticsClient.shutdown();
 }
 
 async function copyContextAtCursorCommandHandler() {
@@ -47,6 +68,7 @@ async function copyContextAtCursorCommandHandler() {
 
     if (!context) {
         vscode.window.showErrorMessage('No context found for the current cursor position.');
+        userId && analyticsClient.capture({ distinctId: userId, event: `no-context-found-at-cursor-${doc.languageId}` });
         return;
     }
 
@@ -54,8 +76,10 @@ async function copyContextAtCursorCommandHandler() {
     if (output) {
         await vscode.env.clipboard.writeText(output);
         vscode.window.showInformationMessage('Raydoc: context copied to clipboard!');
+        userId && analyticsClient.capture({ distinctId: userId, event: `context-copied-${doc.languageId}` });
     } else {
         vscode.window.showWarningMessage('No context available to copy.');
+        userId && analyticsClient.capture({ distinctId: userId, event: `no-context-available-${doc.languageId}` });
     }
 }
 
@@ -72,6 +96,7 @@ async function sendContextToLlmCommandHandler() {
 
     if (!functionDefinition) {
         vscode.window.showErrorMessage('No function definition found for the current cursor position.');
+        userId && analyticsClient.capture({ distinctId: userId, event: `no-function-found-${doc.languageId}` });
         return;
     }
 
@@ -79,6 +104,7 @@ async function sendContextToLlmCommandHandler() {
 
     if (!context) {
         vscode.window.showErrorMessage('No context found for the current cursor position.');
+        userId && analyticsClient.capture({ distinctId: userId, event: `no-context-found-at-cursor-${doc.languageId}` });
         return;
     }
 
@@ -115,6 +141,8 @@ async function sendContextToLlmCommandHandler() {
     await vscode.env.clipboard.writeText(output);
 
     vscode.window.showInformationMessage('Raydoc: context copied to clipboard and sent to LLM!');
+
+    userId && analyticsClient.capture({ distinctId: userId, event: `context-sent-to-llm-${doc.languageId}` });
 }
 
 async function selectAndSendToLlm(functionDefinition: FunctionDefinition, useCursor: boolean) {
