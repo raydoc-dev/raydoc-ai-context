@@ -9,6 +9,74 @@ import { v4 as uuidv4 } from 'uuid';
 let analyticsClient: PostHog;
 let userId: string | undefined;
 
+class RaydocCodeActionProvider implements vscode.CodeActionProvider {
+    public static readonly providedCodeActionKinds = [
+        vscode.CodeActionKind.QuickFix
+    ];
+
+    provideCodeActions(
+        document: vscode.TextDocument,
+        range: vscode.Range | vscode.Selection,
+        context: vscode.CodeActionContext,
+        token: vscode.CancellationToken
+    ): vscode.CodeAction[] | undefined {
+        // Only provide code actions if there are diagnostics (errors/warnings)
+        if (!context.diagnostics.length) {
+            return;
+        }
+
+        const copyAction = new vscode.CodeAction(
+            'Copy AI Context at Cursor',
+            vscode.CodeActionKind.QuickFix
+        );
+        copyAction.command = {
+            command: 'raydoc-context.copyContextAtCursor',
+            title: 'Copy AI Context at Cursor'
+        };
+
+        const sendAction = new vscode.CodeAction(
+            'Send Context to LLM',
+            vscode.CodeActionKind.QuickFix
+        );
+        sendAction.command = {
+            command: 'raydoc-context.sendContextToLlm',
+            title: 'Send Context to LLM'
+        };
+
+        return [copyAction, sendAction];
+    }
+}
+
+class RaydocHoverProvider implements vscode.HoverProvider {
+    async provideHover(
+        document: vscode.TextDocument,
+        position: vscode.Position,
+        token: vscode.CancellationToken
+    ): Promise<vscode.Hover | undefined> {
+        // Get diagnostics at the cursor position
+        const diagnostics = vscode.languages.getDiagnostics(document.uri)
+        .filter(diag => diag.range.contains(position));
+        
+        if (!diagnostics.length) {
+            return undefined; // No error at cursor position
+        }
+        
+        // Prepare the hover message
+        const markdownString = new vscode.MarkdownString();
+        
+        // Add the original diagnostic message
+        markdownString.appendMarkdown(`**Error:** ${diagnostics[0].message}\n\n`);
+        
+        // Add buttons for our extension's commands
+        markdownString.appendMarkdown(`[Copy AI Context for Error](command:raydoc-context.copyContextAtCursor) | [Send Error Context to Cursor Composer/GitHub Copilot](command:raydoc-context.sendContextToLlm)\n\n`);
+        
+        // Enable command execution from the markdown
+        markdownString.isTrusted = true;
+        
+        return new vscode.Hover(markdownString, diagnostics[0].range);
+    }
+}
+
 export function activate(context: vscode.ExtensionContext) {
     analyticsClient = new PostHog(
         'phc_Rv9pNJA7chv1QR27K0jg2s1Bwah2PDsZroMEI1Usic7',
@@ -56,9 +124,26 @@ export function activate(context: vscode.ExtensionContext) {
         async () => { sendContextToLlmCommandHandler(); }
     );
 
+    // Register the code action provider
+    const codeActionProvider = vscode.languages.registerCodeActionsProvider(
+        { scheme: 'file', pattern: '**/*' }, // Match all files
+        new RaydocCodeActionProvider(),
+        {
+            providedCodeActionKinds: RaydocCodeActionProvider.providedCodeActionKinds
+        }
+    );
+
+    // Register the hover provider
+    const hoverProvider = vscode.languages.registerHoverProvider(
+        { scheme: 'file', pattern: '**/*' }, // Match all files
+        new RaydocHoverProvider()
+    );
+
     context.subscriptions.push(
         copyContextAtCursorCommand,
         sendContextToLlmCommand,
+        codeActionProvider,
+        hoverProvider
     );
 }
 
