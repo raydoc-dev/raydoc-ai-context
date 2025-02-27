@@ -40,7 +40,7 @@ class RaydocCodeActionProvider implements vscode.CodeActionProvider {
         );
         sendAction.command = {
             command: 'raydoc-context.sendContextToLlm',
-            title: 'Send Context to LLM'
+            title: 'Send Context to Cursor Composer or Copilot Chat'
         };
 
         return [copyAction, sendAction];
@@ -68,7 +68,7 @@ class RaydocHoverProvider implements vscode.HoverProvider {
         markdownString.appendMarkdown(`**Error:** ${diagnostics[0].message}\n\n`);
         
         // Add buttons for our extension's commands
-        markdownString.appendMarkdown(`[Copy AI Context for Error](command:raydoc-context.copyContextAtCursor) | [Send Error Context to Cursor Composer/GitHub Copilot](command:raydoc-context.sendContextToLlm)\n\n`);
+        markdownString.appendMarkdown(`[Copy AI Context for Error](command:raydoc-context.copyContextAtCursor)\n\n[Send Error Context to Cursor Composer/GitHub Copilot](command:raydoc-context.sendContextToLlm)\n\n`);
         
         // Enable command execution from the markdown
         markdownString.isTrusted = true;

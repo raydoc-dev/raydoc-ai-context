@@ -79,18 +79,6 @@
                     "command": "raydoc-context.sendContextToLlm",
                     "when": "editorTextFocus"
                 }
-            ],
-            "problemsView/item/context": [
-                {
-                    "command": "raydoc-context.copyContextAtCursor",
-                    "group": "inline",
-                    "when": "problemFocus"
-                },
-                {
-                    "command": "raydoc-context.sendContextToLlm",
-                    "group": "inline",
-                    "when": "problemFocus"
-                }
             ]
         },
         "configuration": {
