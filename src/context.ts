@@ -4,68 +4,82 @@ import * as cp from 'child_process';
 import * as util from 'util';
 
 import { getPackageDependencies } from './packages';
-import { FunctionDefinition, RaydocContext } from "./types";
 import { generateFileTree } from './fileTree';
 import { getReferencesForFunction } from './getReferences';
 import { getFunctionDefinition } from './functions';
+import { RaydocContext, FunctionDefinition } from './types';
 
 export async function gatherContext(
     doc: vscode.TextDocument,
-    position: vscode.Position,
-    diag: vscode.Diagnostic | undefined
+    selection: vscode.Selection,
+    diag?: vscode.Diagnostic
 ): Promise<RaydocContext | undefined> {
+    // 1) Which file are we in?
     const filepath = getFilePath(doc);
-    const line = position.line;
-    const immediateContextLines = await getImmediateContextLines(doc, position);
-    const errorMessage = diag?.message || undefined;
-    const languageId = doc.languageId;
-    const runtime = process.version;
-    const runtimeVersion = await getLanguageVersion(doc.languageId);
-    const runtimePath = '';
-    const packages = getPackageDependencies(doc.languageId);
-    const functionDefn = await getFunctionDefinition(doc, position, false, true);
 
-    var typeDefns: FunctionDefinition[] = [];
-    if (functionDefn) {
-        typeDefns = await getReferencesForFunction(doc, functionDefn);
-    } else {
+    // 2) Gather all main function definitions within this selection
+    const functionDefns = await getFunctionsInSelection(doc, selection);
+    if (functionDefns.length === 0) {
         return undefined;
     }
 
-    var referencedFunctions: FunctionDefinition[] = [];
-
-    if (functionDefn) {
-        referencedFunctions = await getReferencesForFunction(doc, functionDefn, false);
-    }
-
-    // Filter out referencedFunctions that match a typeDefn (same functionName & filename)
-    const typeDefnSet = new Set(typeDefns.map(def => `${def.functionName}:${def.filename}`));
-    referencedFunctions = referencedFunctions.filter(
-        ref => !typeDefnSet.has(`${ref.functionName}:${ref.filename}`)
-    );
-
+    // 3) Deduplicate references across all main functions
+    const typeDefnMap = new Map<string, FunctionDefinition>();
+    const refFnMap = new Map<string, FunctionDefinition>();
     const usedFiles = new Set<string>();
     usedFiles.add(filepath);
 
-    for (const typeDefn of typeDefns) {
-        usedFiles.add(typeDefn.filename);
+    // For each main function found, gather references & type definitions
+    for (const fn of functionDefns) {
+        // Mark that we use that function’s file
+        usedFiles.add(fn.filename);
+
+        // “true” in getReferencesForFunction means get type defs?
+        // or you might have separate calls. Adjust to match your logic.
+        const typeDefs = await getReferencesForFunction(doc, fn, true);
+        for (const t of typeDefs) {
+            typeDefnMap.set(`${t.functionName}:${t.filename}`, t);
+            usedFiles.add(t.filename);
+        }
+
+        const refFns = await getReferencesForFunction(doc, fn, false);
+        for (const r of refFns) {
+            refFnMap.set(`${r.functionName}:${r.filename}`, r);
+            usedFiles.add(r.filename);
+        }
     }
 
+    // 4) Now we have potential overlap where some references appear in both.
+    //    If your logic requires removing overlap, do it. Example:
+    for (const [key, refFn] of refFnMap) {
+        if (typeDefnMap.has(key)) {
+            // remove duplicates if you want
+            // e.g. typeDefnMap.delete(key);
+            // Or do nothing if it’s okay for them to appear in both arrays
+        }
+    }
+
+    // 5) Build the immediate context lines from selection +/- 3 lines
+    const immediateContextLines = buildImmediateContextLines(doc, selection);
+
+    // 6) Build the file tree for all used files
     const fileTree = await generateFileTree(usedFiles);
 
+    // 7) Finally, create one RaydocContext
     const context: RaydocContext = {
         filepath,
-        line,
+        // A single line can be the first main function’s start line (or selection.start.line)
+        line: selection.start.line,
+        errorMessage: diag?.message,
+        languageId: doc.languageId,
+        runtime: process.version,
+        runtimeVersion: await getLanguageVersion(doc.languageId),
+        runtimePath: '',
+        packages: getPackageDependencies(doc.languageId),
+        functionDefns,
+        typeDefns: Array.from(typeDefnMap.values()),
+        referencedFunctions: Array.from(refFnMap.values()),
         immediateContextLines,
-        errorMessage,
-        languageId,
-        runtime,
-        runtimeVersion,
-        runtimePath,
-        packages,
-        functionDefn,
-        referencedFunctions,
-        typeDefns,
         fileTree
     };
 
@@ -74,13 +88,63 @@ export async function gatherContext(
 
 function getFilePath(doc: vscode.TextDocument): string {
     const workspaceFolders = vscode.workspace.workspaceFolders;
-    let projectRoot = '';
-    if (workspaceFolders && workspaceFolders?.length) {
-        projectRoot = workspaceFolders[0].uri.fsPath;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+        return doc.uri.fsPath; // fallback
     }
+    const projectRoot = workspaceFolders[0].uri.fsPath;
+    return path.relative(projectRoot, doc.uri.fsPath);
+}
 
-    const relPath = path.relative(projectRoot, doc.uri.fsPath);
-    return relPath;
+/**
+ * Find all function definitions that intersect the user’s selection.
+ * This naive approach tries each line in the range. You can optimize as needed.
+ */
+async function getFunctionsInSelection(
+    doc: vscode.TextDocument,
+    selection: vscode.Selection
+): Promise<FunctionDefinition[]> {
+    const found: FunctionDefinition[] = [];
+    const start = selection.start.line;
+    const end = selection.end.line;
+    for (let line = start; line <= end; line++) {
+        // We just check a position at the start of each line
+        const position = new vscode.Position(line, 0);
+        const fnDef = await getFunctionDefinition(doc, position, false, true);
+        if (fnDef) {
+            const key = `${fnDef.functionName}:${fnDef.startLine}:${fnDef.endLine}:${fnDef.filename}`;
+            // Deduplicate
+            if (!found.some(f => 
+                `${f.functionName}:${f.startLine}:${f.endLine}:${f.filename}` === key
+            )) {
+                found.push(fnDef);
+            }
+        }
+    }
+    return found;
+}
+
+/**
+ * Build context lines from selection.start.line - 3 to selection.end.line + 3,
+ * marking each line within the selection with ">>>".
+ */
+function buildImmediateContextLines(
+    doc: vscode.TextDocument,
+    selection: vscode.Selection
+): string {
+    const lineCount = doc.lineCount;
+    const startLine = Math.max(0, selection.start.line - 3);
+    const endLine = Math.min(lineCount - 1, selection.end.line + 3);
+
+    const lines: string[] = [];
+    for (let i = startLine; i <= endLine; i++) {
+        if (i >= selection.start.line && i <= selection.end.line) {
+            // This line is in the user’s highlighted block
+            lines.push(`>>> ${doc.lineAt(i).text}`);
+        } else {
+            lines.push(`    ${doc.lineAt(i).text}`);
+        }
+    }
+    return lines.join('\n');
 }
 
 /**
@@ -114,32 +178,6 @@ export async function getLanguageVersion(languageId: string): Promise<string | u
     } catch {
         return undefined;
     }
-}
-
-export async function getImmediateContextLines(
-    doc: vscode.TextDocument,
-    position: vscode.Position
-): Promise<string> {
-    const lineCount = doc.lineCount;
-    const lineNumber = position.line;
-    
-    // Get lines before, including the current line, and after
-    const startLine = Math.max(0, lineNumber - 3); // Ensure we don't go below line 0
-    const endLine = Math.min(lineCount - 1, lineNumber + 3); // Ensure we don't go above the last line
-
-    const contextLines: string[] = [];
-    
-    // Collect the lines in the context range
-    for (let i = startLine; i <= endLine; i++) {
-        if (i === lineNumber) {
-            contextLines.push(`>>> ${doc.lineAt(i).text}`); // Highlight the current line
-        } else {
-            contextLines.push(`    ${doc.lineAt(i).text}`); // Push each line's text into the array
-        }
-    }
-
-    // Join all context lines with a newline separator and return
-    return contextLines.join('\n');
 }
 
 const execPromise = util.promisify(cp.exec);
