@@ -11,6 +11,7 @@ export function contextToString(context: RaydocContext): string {
     const includeFunctionDefn = config.get<boolean>('function-definition', true);
     const includeTypeDefns = config.get<boolean>('type-definitions', true);
     const includeReferencedFunctions = config.get<boolean>('referenced-functions', false);
+    const systemMessage = config.get<string>('system-message', '');
 
     let output = '';
 
@@ -38,7 +39,7 @@ export function contextToString(context: RaydocContext): string {
         output += `File: ${context.filepath}\n`;
     }
 
-    // Note: context.line is the first line of the user’s selection in gatherContext
+    // Note: context.line is the first line of the user's selection in gatherContext
     if (typeof context.line === 'number') {
         output += `Line: ${context.line + 1}\n`; // Convert to 1-based for readability
     }
@@ -105,12 +106,20 @@ export function contextToString(context: RaydocContext): string {
         }
     }
 
+    // ========== System Message ==========
+    if (systemMessage && systemMessage.trim() !== '') {
+        output += "\n=== System Message ===\n";
+        output += systemMessage;
+        output += "\n\n";
+    }
+
     return output;
 }
 
 export function contextToStringLlm(context: RaydocContext): string {
     const config = vscode.workspace.getConfiguration('raydoc-context.output-config');
     const includeFocusedLines = config.get<boolean>('focused-lines', true);
+    const systemMessage = config.get<string>('system-message', '');
 
     let output = '';
 
@@ -120,10 +129,17 @@ export function contextToStringLlm(context: RaydocContext): string {
         output += `Error Message: ${context.errorMessage}\n\n`;
     }
 
-    // If configured, show the focused lines (the user’s selection + some surrounding lines)
+    // If configured, show the focused lines (the user's selection + some surrounding lines)
     if (includeFocusedLines && context.immediateContextLines) {
         output += "=== Focus Lines ===\n";
         output += context.immediateContextLines;
+        output += "\n\n";
+    }
+
+    // Add system message if it exists
+    if (systemMessage && systemMessage.trim() !== '') {
+        output += "\n=== System Message ===\n";
+        output += systemMessage;
         output += "\n\n";
     }
 

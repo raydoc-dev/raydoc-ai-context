@@ -151,6 +151,11 @@
                     "type": "boolean",
                     "default": true,
                     "description": "Include all referenced functions in the copied context"
+                },
+                "raydoc-context.output-config.system-message": {
+                    "type": "string",
+                    "default": "",
+                    "description": "A system message or prompt to append to the end of every context output"
                 }
             }
         }
