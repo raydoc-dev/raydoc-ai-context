@@ -56,11 +56,11 @@ export function activate(context: vscode.ExtensionContext) {
         'raydoc-context.copyContextAtCursorWithoutPosition',
         () => copyContextAtCursorCommandHandler()
     );
-    
+
     const sendContextToLlmCommand = vscode.commands.registerCommand(
         'raydoc-context.sendContextToLlm',
         (positionArg?: { uri: string, line: number, character: number }) => sendContextToLlmCommandHandler(positionArg)
-    );    
+    );
 
     const sendFromMenu = vscode.commands.registerCommand(
         'raydoc-context.sendContextToLlmWithoutPosition',
@@ -145,7 +145,7 @@ class RaydocHoverProvider implements vscode.HoverProvider {
     ): Promise<vscode.Hover> {
         const diagnostics = vscode.languages.getDiagnostics(document.uri)
             .filter(diag => diag.range.contains(position));
-        
+
         const markdownString = new vscode.MarkdownString();
 
         if (diagnostics.length) {
@@ -178,7 +178,7 @@ export function deactivate() {
 
 function isSelectionEmpty(selection: vscode.Selection): boolean {
     return selection.start.line === selection.end.line &&
-           selection.start.character === selection.end.character;
+        selection.start.character === selection.end.character;
 }
 
 async function copyContextAtCursorCommandHandler(positionArg?: { uri: string, line: number, character: number }) {
@@ -214,18 +214,7 @@ async function copyContextAtCursorCommandHandler(positionArg?: { uri: string, li
     const context = await gatherContext(doc, selection, diag);
     if (!context) {
         vscode.window.showErrorMessage('No context found for the current cursor position.');
-        const extension = vscode.extensions.getExtension('raydoc.raydoc-ai-context');
-        const raydocVersion = extension?.packageJSON.version || 'unknown';
-        userId && analyticsClient.capture({
-            distinctId: userId,
-            event: `no-context-found-at-cursor`,
-            properties: {
-                languageId: doc.languageId,
-                raydocVersion: raydocVersion,
-                isCursor: isCursor(),
-                editorVersion: vscode.version,
-            }
-        });
+        sendPHEvent(doc, 'no-context-found-at-cursor');
         return;
     }
 
@@ -233,32 +222,10 @@ async function copyContextAtCursorCommandHandler(positionArg?: { uri: string, li
     if (output) {
         await vscode.env.clipboard.writeText(output);
         vscode.window.showInformationMessage('Raydoc: context copied to clipboard!');
-        const extension = vscode.extensions.getExtension('raydoc.raydoc-ai-context');
-        const raydocVersion = extension?.packageJSON.version || 'unknown';
-        userId && analyticsClient.capture({
-            distinctId: userId,
-            event: `context-copied`,
-            properties: {
-                languageId: doc.languageId,
-                raydocVersion: raydocVersion,
-                isCursor: isCursor(),
-                editorVersion: vscode.version,
-            }
-        });
+        sendPHEvent(doc, 'context-copied');
     } else {
         vscode.window.showWarningMessage('No context available to copy.');
-        const extension = vscode.extensions.getExtension('raydoc.raydoc-ai-context');
-        const raydocVersion = extension?.packageJSON.version || 'unknown';
-        userId && analyticsClient.capture({
-            distinctId: userId,
-            event: `no-context-available`,
-            properties: {
-                languageId: doc.languageId,
-                raydocVersion: raydocVersion,
-                isCursor: isCursor(),
-                editorVersion: vscode.version,
-            }
-        });
+        sendPHEvent(doc, 'no-context-available');
     }
 }
 
@@ -292,18 +259,7 @@ async function sendContextToLlmCommandHandler(
     if (!context) {
         vscode.window.showErrorMessage('No function(s) found at the current selection/cursor.');
         // Optional analytics
-        const extension = vscode.extensions.getExtension('raydoc.raydoc-ai-context');
-        const raydocVersion = extension?.packageJSON.version || 'unknown';
-        userId && analyticsClient.capture({
-            distinctId: userId,
-            event: `no-functions-found`,
-            properties: {
-                languageId: doc.languageId,
-                raydocVersion: raydocVersion,
-                isCursor: isCursor(),
-                editorVersion: vscode.version,
-            }
-        });
+        sendPHEvent(doc, 'no-functions-found');
         return;
     }
 
@@ -332,18 +288,7 @@ async function sendContextToLlmCommandHandler(
     vscode.window.showInformationMessage('Raydoc: context copied to clipboard and sent to LLM!');
 
     // --- 6) Analytics (optional) ---
-    const extension = vscode.extensions.getExtension('raydoc.raydoc-ai-context');
-    const raydocVersion = extension?.packageJSON.version || 'unknown';
-    userId && analyticsClient.capture({
-        distinctId: userId,
-        event: `context-sent-to-llm`,
-        properties: {
-            languageId: doc.languageId,
-            raydocVersion: raydocVersion,
-            isCursor: isCursor(),
-            editorVersion: vscode.version,
-        }
-    });
+    sendPHEvent(doc, 'context-sent-to-llm');
 }
 
 async function selectAndSendToLlm(functionDefinition: FunctionDefinition, useCursor: boolean) {
@@ -398,7 +343,7 @@ async function getFunctionsInSelection(
         if (fnDef) {
             // Avoid duplicates
             const signature = `${fnDef.functionName}:${fnDef.startLine}:${fnDef.endLine}:${fnDef.filename}`;
-            if (!foundFunctions.some(f => 
+            if (!foundFunctions.some(f =>
                 `${f.functionName}:${f.startLine}:${f.endLine}:${f.filename}` === signature)) {
                 foundFunctions.push(fnDef);
             }
@@ -414,4 +359,20 @@ function isCursor(): boolean {
 
     // Cursor will have "Cursor" in its application name
     return appName.includes('Cursor');
+}
+
+function sendPHEvent(doc: vscode.TextDocument, eventName: string) {
+    const extension = vscode.extensions.getExtension('raydoc.raydoc-ai-context');
+    const raydocVersion = extension?.packageJSON.version || 'unknown';
+    userId && analyticsClient.capture({
+        distinctId: userId,
+        event: eventName,
+        properties: {
+            languageId: doc.languageId,
+            raydocVersion: raydocVersion,
+            isCursor: isCursor(),
+            editorVersion: vscode.version,
+            isDev: process.env.VSCODE_DEBUG_MODE === 'true'
+        }
+    });
 }
