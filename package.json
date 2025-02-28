@@ -30,6 +30,14 @@
             {
                 "command": "raydoc-context.sendContextToLlm",
                 "title": "Send Context to Copilot Chat or Cursor Composer"
+            },
+            {
+                "command": "raydoc-context.copyContextAtCursorWithoutPosition",
+                "title": "Copy Context at Cursor"
+            },
+            {
+                "command": "raydoc-context.sendContextToLlmWithoutPosition",
+                "title": "Send Context to Copilot Chat or Cursor Composer"
             }
         ],
         "keybindings": [
@@ -49,12 +57,12 @@
         "menus": {
             "editor/context": [
                 {
-                    "command": "raydoc-context.copyContextAtCursor",
+                    "command": "raydoc-context.copyContextAtCursorWithoutPosition",
                     "group": "raydoc",
                     "when": "editorTextFocus"
                 },
                 {
-                    "command": "raydoc-context.sendContextToLlm",
+                    "command": "raydoc-context.sendContextToLlmWithoutPosition",
                     "group": "raydoc",
                     "when": "editorTextFocus"
                 }

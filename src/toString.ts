@@ -109,23 +109,22 @@ export function contextToString(context: RaydocContext): string {
 }
 
 export function contextToStringLlm(context: RaydocContext): string {
-    // By default, “toStringLlm” is minimal; modify if you want more details for the LLM
     const config = vscode.workspace.getConfiguration('raydoc-context.output-config');
     const includeFocusedLines = config.get<boolean>('focused-lines', true);
 
     let output = '';
 
+    // If there's an error message, show it
     if (context.errorMessage) {
         output += "=== Error ===\n";
         output += `Error Message: ${context.errorMessage}\n\n`;
     }
 
-    if (includeFocusedLines) {
+    // If configured, show the focused lines (the user’s selection + some surrounding lines)
+    if (includeFocusedLines && context.immediateContextLines) {
         output += "=== Focus Lines ===\n";
-        if (context.immediateContextLines) {
-            output += context.immediateContextLines;
-            output += "\n\n";
-        }
+        output += context.immediateContextLines;
+        output += "\n\n";
     }
 
     return output;
