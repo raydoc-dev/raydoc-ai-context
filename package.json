@@ -155,7 +155,8 @@
                 "raydoc-context.output-config.system-message": {
                     "type": "string",
                     "default": "",
-                    "description": "A system message or prompt to append to the end of every context output"
+                    "description": "A system message or prompt to append to the end of every context output",
+                    "editPresentation": "multilineText"
                 }
             }
         }
