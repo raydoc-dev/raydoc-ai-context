@@ -67,7 +67,7 @@ class RaydocHoverProvider implements vscode.HoverProvider {
     ): Promise<vscode.Hover> {
         const diagnostics = vscode.languages.getDiagnostics(document.uri)
             .filter(diag => diag.range.contains(position));
-        
+
         const markdownString = new vscode.MarkdownString();
 
         if (diagnostics.length) {
@@ -113,10 +113,10 @@ export function activate(context: vscode.ExtensionContext) {
         // This is the first time the extension is being used, we can also check to see if we are using Cursor
         // Automatically detect if we're running in Cursor
         const isCursorDetected = isCursor();
-        
+
         // Get the configuration and update it based on detection
         const config = vscode.workspace.getConfiguration('raydoc-context');
-        
+
         // Only update the configuration if it doesn't match what we detected
         if (config.get<boolean>('use-cursor', false) !== isCursorDetected) {
             // Update the configuration to match the detected editor
@@ -135,11 +135,11 @@ export function activate(context: vscode.ExtensionContext) {
         'raydoc-context.copyContextAtCursor',
         (positionArg?: { uri: string, line: number, character: number }) => copyContextAtCursorCommandHandler(positionArg)
     );
-    
+
     const sendContextToLlmCommand = vscode.commands.registerCommand(
         'raydoc-context.sendContextToLlm',
         (positionArg?: { uri: string, line: number, character: number }) => sendContextToLlmCommandHandler(positionArg)
-    );    
+    );
 
     // Register the code action provider
     const codeActionProvider = vscode.languages.registerCodeActionsProvider(
@@ -170,7 +170,7 @@ export function deactivate() {
 
 async function copyContextAtCursorCommandHandler(positionArg?: { uri: string, line: number, character: number }) {
     const editor = vscode.window.activeTextEditor;
-    
+
     let doc: vscode.TextDocument;
     let position: vscode.Position;
 
@@ -190,22 +190,59 @@ async function copyContextAtCursorCommandHandler(positionArg?: { uri: string, li
     const diag = diagnostics.find(d => d.range.contains(position));
 
     const context = await gatherContext(doc, position, diag);
-
     if (!context) {
-        vscode.window.showErrorMessage('No context found for the current location.');
-        userId && analyticsClient.capture({ distinctId: userId, event: `no-context-found-${doc.languageId}` });
+        vscode.window.showErrorMessage('No context found for the current cursor position.');
+        const extension = vscode.extensions.getExtension('raydoc.raydoc-ai-context');
+        const raydocVersion = extension?.packageJSON.version || 'unknown';
+        userId && analyticsClient.capture({
+            distinctId: userId,
+            event: `no-context-found-at-cursor`,
+            properties: {
+                languageId: doc.languageId,
+                raydocVersion: raydocVersion,
+                isCursor: isCursor(),
+                editorVersion: vscode.version,
+            }
+        });
         return;
     }
 
     const output = contextToString(context) + '---\n\n\n';
-    await vscode.env.clipboard.writeText(output);
-    vscode.window.showInformationMessage('Raydoc: context copied to clipboard!');
-    userId && analyticsClient.capture({ distinctId: userId, event: `context-copied-${doc.languageId}` });
+    if (output) {
+        await vscode.env.clipboard.writeText(output);
+        vscode.window.showInformationMessage('Raydoc: context copied to clipboard!');
+        const extension = vscode.extensions.getExtension('raydoc.raydoc-ai-context');
+        const raydocVersion = extension?.packageJSON.version || 'unknown';
+        userId && analyticsClient.capture({
+            distinctId: userId,
+            event: `context-copied`,
+            properties: {
+                languageId: doc.languageId,
+                raydocVersion: raydocVersion,
+                isCursor: isCursor(),
+                editorVersion: vscode.version,
+            }
+        });
+    } else {
+        vscode.window.showWarningMessage('No context available to copy.');
+        const extension = vscode.extensions.getExtension('raydoc.raydoc-ai-context');
+        const raydocVersion = extension?.packageJSON.version || 'unknown';
+        userId && analyticsClient.capture({
+            distinctId: userId,
+            event: `no-context-available`,
+            properties: {
+                languageId: doc.languageId,
+                raydocVersion: raydocVersion,
+                isCursor: isCursor(),
+                editorVersion: vscode.version,
+            }
+        });
+    }
 }
 
 async function sendContextToLlmCommandHandler(positionArg?: { uri: string, line: number, character: number }) {
     const editor = vscode.window.activeTextEditor;
-    
+
     let doc: vscode.TextDocument;
     let position: vscode.Position;
 
@@ -223,15 +260,37 @@ async function sendContextToLlmCommandHandler(positionArg?: { uri: string, line:
 
     const functionDefinition = await getFunctionDefinition(doc, position, false, true);
     if (!functionDefinition) {
-        vscode.window.showErrorMessage('No function definition found at this location.');
-        userId && analyticsClient.capture({ distinctId: userId, event: `no-function-found-${doc.languageId}` });
+        vscode.window.showErrorMessage('No function definition found for the current cursor position.');
+        const extension = vscode.extensions.getExtension('raydoc.raydoc-ai-context');
+        const raydocVersion = extension?.packageJSON.version || 'unknown';
+        userId && analyticsClient.capture({
+            distinctId: userId,
+            event: `no-function-found`,
+            properties: {
+                languageId: doc.languageId,
+                raydocVersion: raydocVersion,
+                isCursor: isCursor(),
+                editorVersion: vscode.version,
+            }
+        });
         return;
     }
 
     const context = await gatherContext(doc, position, undefined);
     if (!context) {
-        vscode.window.showErrorMessage('No context found at this location.');
-        userId && analyticsClient.capture({ distinctId: userId, event: `no-context-found-${doc.languageId}` });
+        vscode.window.showErrorMessage('No context found for the current cursor position.');
+        const extension = vscode.extensions.getExtension('raydoc.raydoc-ai-context');
+        const raydocVersion = extension?.packageJSON.version || 'unknown';
+        userId && analyticsClient.capture({
+            distinctId: userId,
+            event: `no-context-found-at-cursor`,
+            properties: {
+                languageId: doc.languageId,
+                raydocVersion: raydocVersion,
+                isCursor: isCursor(),
+                editorVersion: vscode.version,
+            }
+        });
         return;
     }
 
@@ -259,7 +318,19 @@ async function sendContextToLlmCommandHandler(positionArg?: { uri: string, line:
     await vscode.env.clipboard.writeText(output);
 
     vscode.window.showInformationMessage('Raydoc: context copied to clipboard and sent to LLM!');
-    userId && analyticsClient.capture({ distinctId: userId, event: `context-sent-to-llm-${doc.languageId}` });
+
+    const extension = vscode.extensions.getExtension('raydoc.raydoc-ai-context');
+    const raydocVersion = extension?.packageJSON.version || 'unknown';
+    userId && analyticsClient.capture({
+        distinctId: userId,
+        event: `context-sent-to-llm`,
+        properties: {
+            languageId: doc.languageId,
+            raydocVersion: raydocVersion,
+            isCursor: isCursor(),
+            editorVersion: vscode.version,
+        }
+    });
 }
 
 async function selectAndSendToLlm(functionDefinition: FunctionDefinition, useCursor: boolean) {
@@ -299,7 +370,7 @@ function getSelectionFromFunctionDefinition(doc: vscode.TextDocument, functionDe
 function isCursor(): boolean {
     // Check the application name
     const appName = vscode.env.appName;
-    
+
     // Cursor will have "Cursor" in its application name
     return appName.includes('Cursor');
-  }
+}
