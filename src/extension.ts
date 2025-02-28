@@ -25,13 +25,24 @@ class RaydocCodeActionProvider implements vscode.CodeActionProvider {
             return;
         }
 
+        // Extract the position from the range (start position)
+        const positionArg = {
+            uri: document.uri.toString(),
+            line: range.start.line,
+            character: range.start.character
+        };
+
+        // Encode arguments as a JSON string for VS Code command execution
+        const args = [positionArg];
+
         const copyAction = new vscode.CodeAction(
             'Copy AI Context at Cursor',
             vscode.CodeActionKind.QuickFix
         );
         copyAction.command = {
             command: 'raydoc-context.copyContextAtCursor',
-            title: 'Copy AI Context at Cursor'
+            title: 'Copy AI Context at Cursor',
+            arguments: args // Pass position argument
         };
 
         const sendAction = new vscode.CodeAction(
@@ -40,7 +51,8 @@ class RaydocCodeActionProvider implements vscode.CodeActionProvider {
         );
         sendAction.command = {
             command: 'raydoc-context.sendContextToLlm',
-            title: 'Send Context to Cursor Composer or Copilot Chat'
+            title: 'Send Context to Cursor Composer or Copilot Chat',
+            arguments: args // Pass position argument
         };
 
         return [copyAction, sendAction];
