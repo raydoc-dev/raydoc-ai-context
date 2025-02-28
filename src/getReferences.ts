@@ -14,11 +14,11 @@ export async function getReferencesForFunction(
     for (let i = functionDefinition.startLine; i <= functionDefinition.endLine; i++) {
         const lineTypeDefinitions = await getTypeDefinitionsForLine(document, new vscode.Position(i, 0), functionDefinition, returnTypes);
         for (const typeDef of lineTypeDefinitions) {
-            if (typeDef.functionName === functionDefinition.functionName && typeDef.filename === functionDefinition.filename) {
+            if (typeDef.functionName === functionDefinition.functionName) {
                 continue;
             }
 
-            const key = `${typeDef.functionName}-${typeDef.filename}`;
+            const key = `${typeDef.functionName}`;
             if (!functionTypeDefinitions.has(key)) {
                 functionTypeDefinitions.set(key, typeDef);
             }
