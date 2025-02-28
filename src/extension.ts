@@ -168,98 +168,119 @@ export function deactivate() {
     analyticsClient.shutdown();
 }
 
+function isSelectionEmpty(selection: vscode.Selection): boolean {
+    return selection.start.line === selection.end.line &&
+           selection.start.character === selection.end.character;
+}
+
 async function copyContextAtCursorCommandHandler(positionArg?: { uri: string, line: number, character: number }) {
     const editor = vscode.window.activeTextEditor;
-    
-    let doc: vscode.TextDocument;
-    let position: vscode.Position;
-
-    if (positionArg) {
-        const uri = vscode.Uri.parse(positionArg.uri);
-        doc = await vscode.workspace.openTextDocument(uri);
-        position = new vscode.Position(positionArg.line, positionArg.character);
-    } else if (editor) {
-        doc = editor.document;
-        position = editor.selection.active;
-    } else {
+    if (!editor) {
         vscode.window.showWarningMessage('No active text editor.');
         return;
     }
 
-    const diagnostics = vscode.languages.getDiagnostics(doc.uri);
-    const diag = diagnostics.find(d => d.range.contains(position));
+    let doc: vscode.TextDocument;
+    let selection: vscode.Selection;
+    let diag: vscode.Diagnostic | undefined;
 
-    const context = await gatherContext(doc, position, diag);
+    if (positionArg) {
+        // If triggered via code action or hover, we have a position
+        const uri = vscode.Uri.parse(positionArg.uri);
+        doc = await vscode.workspace.openTextDocument(uri);
+        const pos = new vscode.Position(positionArg.line, positionArg.character);
+        // Construct a single-cursor selection if we only have a position
+        selection = new vscode.Selection(pos, pos);
+        // Find any diagnostic that covers this position
+        const allDiagnostics = vscode.languages.getDiagnostics(doc.uri);
+        diag = allDiagnostics.find(d => d.range.contains(pos));
+    } else {
+        // Use the user’s current selection
+        doc = editor.document;
+        selection = editor.selection;
+        // If we want to pick a diagnostic for the start of the selection
+        const allDiagnostics = vscode.languages.getDiagnostics(doc.uri);
+        diag = allDiagnostics.find(d => d.range.contains(selection.start));
+    }
 
+    const context = await gatherContext(doc, selection, diag);
     if (!context) {
-        vscode.window.showErrorMessage('No context found for the current location.');
-        userId && analyticsClient.capture({ distinctId: userId, event: `no-context-found-${doc.languageId}` });
+        vscode.window.showErrorMessage('No function(s) found in the selection.');
+        userId && analyticsClient.capture({
+            distinctId: userId,
+            event: `no-functions-found-${doc.languageId}`
+        });
         return;
     }
 
-    const output = contextToString(context) + '---\n\n\n';
+    // Convert your context to a string
+    const output = contextToString(context);
     await vscode.env.clipboard.writeText(output);
-    vscode.window.showInformationMessage('Raydoc: context copied to clipboard!');
-    userId && analyticsClient.capture({ distinctId: userId, event: `context-copied-${doc.languageId}` });
+
+    vscode.window.showInformationMessage('Raydoc: combined context copied to clipboard!');
+    userId && analyticsClient.capture({
+        distinctId: userId,
+        event: `context-copied-${doc.languageId}`
+    });
 }
 
 async function sendContextToLlmCommandHandler(positionArg?: { uri: string, line: number, character: number }) {
     const editor = vscode.window.activeTextEditor;
-    
-    let doc: vscode.TextDocument;
-    let position: vscode.Position;
-
-    if (positionArg) {
-        const uri = vscode.Uri.parse(positionArg.uri);
-        doc = await vscode.workspace.openTextDocument(uri);
-        position = new vscode.Position(positionArg.line, positionArg.character);
-    } else if (editor) {
-        doc = editor.document;
-        position = editor.selection.active;
-    } else {
+    if (!editor) {
         vscode.window.showWarningMessage('No active text editor.');
         return;
     }
 
-    const functionDefinition = await getFunctionDefinition(doc, position, false, true);
-    if (!functionDefinition) {
-        vscode.window.showErrorMessage('No function definition found at this location.');
-        userId && analyticsClient.capture({ distinctId: userId, event: `no-function-found-${doc.languageId}` });
-        return;
+    let doc: vscode.TextDocument;
+    let selection: vscode.Selection;
+
+    if (positionArg) {
+        const uri = vscode.Uri.parse(positionArg.uri);
+        doc = await vscode.workspace.openTextDocument(uri);
+        const pos = new vscode.Position(positionArg.line, positionArg.character);
+        selection = new vscode.Selection(pos, pos);
+    } else {
+        doc = editor.document;
+        selection = editor.selection;
     }
 
-    const context = await gatherContext(doc, position, undefined);
+    // We don’t strictly need a diagnostic for sending context
+    const context = await gatherContext(doc, selection);
     if (!context) {
-        vscode.window.showErrorMessage('No context found at this location.');
-        userId && analyticsClient.capture({ distinctId: userId, event: `no-context-found-${doc.languageId}` });
+        vscode.window.showErrorMessage('No function(s) found in the selection.');
+        userId && analyticsClient.capture({
+            distinctId: userId,
+            event: `no-functions-found-${doc.languageId}`
+        });
         return;
     }
 
-    const originalFileUri = doc.uri;
     const config = vscode.workspace.getConfiguration('raydoc-context');
     const useCursor = config.get<boolean>('use-cursor', false);
 
-    await selectAndSendToLlm(functionDefinition, useCursor);
-    for (const typeDefn of context.typeDefns || []) {
-        await selectAndSendToLlm(typeDefn, useCursor);
-    }
-    for (const referencedFunction of context.referencedFunctions || []) {
-        await selectAndSendToLlm(referencedFunction, useCursor);
-    }
+    // Instead of sending each function separately, we can highlight them all or do as you wish.
+    // For demonstration, we highlight the entire user selection once:
+    const originalEditor = await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
+    originalEditor.selection = selection;
 
-    if (useCursor) {
+    if (!useCursor) {
+        // Attach selection to Copilot Chat
+        await vscode.commands.executeCommand("github.copilot.chat.attachSelection");
+    } else {
+        // Attach selection to Cursor
+        await vscode.commands.executeCommand("composer.startComposerPrompt");
         vscode.commands.executeCommand("workbench.panel.composerViewPane2.view.focus");
     }
 
-    const originalDoc = await vscode.workspace.openTextDocument(originalFileUri);
-    const originalEditor = await vscode.window.showTextDocument(originalDoc, vscode.ViewColumn.One);
-    originalEditor.selection = new vscode.Selection(position, position);
-
+    // Optionally copy the big LLM-ready output
     const output = contextToStringLlm(context);
     await vscode.env.clipboard.writeText(output);
 
-    vscode.window.showInformationMessage('Raydoc: context copied to clipboard and sent to LLM!');
-    userId && analyticsClient.capture({ distinctId: userId, event: `context-sent-to-llm-${doc.languageId}` });
+    vscode.window.showInformationMessage('Raydoc: combined context copied and sent to LLM!');
+    userId && analyticsClient.capture({
+        distinctId: userId,
+        event: `context-sent-to-llm-${doc.languageId}`
+    });
 }
 
 async function selectAndSendToLlm(functionDefinition: FunctionDefinition, useCursor: boolean) {
@@ -296,10 +317,38 @@ function getSelectionFromFunctionDefinition(doc: vscode.TextDocument, functionDe
     );
 }
 
+async function getFunctionsInSelection(
+    doc: vscode.TextDocument,
+    selection: vscode.Selection
+): Promise<FunctionDefinition[]> {
+    const foundFunctions: FunctionDefinition[] = [];
+
+    // We take every line in the selection
+    const startLine = selection.start.line;
+    const endLine = selection.end.line;
+
+    for (let line = startLine; line <= endLine; line++) {
+        // We try a position at column 0, but you could also iterate columns if needed
+        const position = new vscode.Position(line, 0);
+        const fnDef = await getFunctionDefinition(doc, position, false, true);
+
+        if (fnDef) {
+            // Avoid duplicates
+            const signature = `${fnDef.functionName}:${fnDef.startLine}:${fnDef.endLine}:${fnDef.filename}`;
+            if (!foundFunctions.some(f => 
+                `${f.functionName}:${f.startLine}:${f.endLine}:${f.filename}` === signature)) {
+                foundFunctions.push(fnDef);
+            }
+        }
+    }
+
+    return foundFunctions;
+}
+
 function isCursor(): boolean {
     // Check the application name
     const appName = vscode.env.appName;
     
     // Cursor will have "Cursor" in its application name
     return appName.includes('Cursor');
-  }
+}
