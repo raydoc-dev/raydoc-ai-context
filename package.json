@@ -46,6 +46,42 @@
                 "when": "editorTextFocus"
             }
         ],
+        "menus": {
+            "editor/context": [
+                {
+                    "command": "raydoc-context.copyContextAtCursor",
+                    "group": "raydoc",
+                    "when": "editorTextFocus"
+                },
+                {
+                    "command": "raydoc-context.sendContextToLlm",
+                    "group": "raydoc",
+                    "when": "editorTextFocus"
+                }
+            ],
+            "editor/title/context": [
+                {
+                    "command": "raydoc-context.copyContextAtCursor",
+                    "group": "raydoc",
+                    "when": "editorTextFocus"
+                },
+                {
+                    "command": "raydoc-context.sendContextToLlm",
+                    "group": "raydoc",
+                    "when": "editorTextFocus"
+                }
+            ],
+            "commandPalette": [
+                {
+                    "command": "raydoc-context.copyContextAtCursor",
+                    "when": "editorTextFocus"
+                },
+                {
+                    "command": "raydoc-context.sendContextToLlm",
+                    "when": "editorTextFocus"
+                }
+            ]
+        },
         "configuration": {
             "type": "object",
             "title": "Raydoc Settings",
