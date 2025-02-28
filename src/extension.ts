@@ -28,10 +28,10 @@ export function activate(context: vscode.ExtensionContext) {
         // This is the first time the extension is being used, we can also check to see if we are using Cursor
         // Automatically detect if we're running in Cursor
         const isCursorDetected = isCursor();
-        
+
         // Get the configuration and update it based on detection
         const config = vscode.workspace.getConfiguration('raydoc-context');
-        
+
         // Only update the configuration if it doesn't match what we detected
         if (config.get<boolean>('use-cursor', false) !== isCursorDetected) {
             // Update the configuration to match the detected editor
@@ -183,10 +183,6 @@ function isSelectionEmpty(selection: vscode.Selection): boolean {
 
 async function copyContextAtCursorCommandHandler(positionArg?: { uri: string, line: number, character: number }) {
     const editor = vscode.window.activeTextEditor;
-    if (!editor) {
-        vscode.window.showWarningMessage('No active text editor.');
-        return;
-    }
 
     let doc: vscode.TextDocument;
     let selection: vscode.Selection;
@@ -203,7 +199,11 @@ async function copyContextAtCursorCommandHandler(positionArg?: { uri: string, li
         const allDiagnostics = vscode.languages.getDiagnostics(doc.uri);
         diag = allDiagnostics.find(d => d.range.contains(pos));
     } else {
-        // Use the user’s current selection
+        // Use the user's current selection
+        if (!editor) {
+            vscode.window.showWarningMessage('No active text editor.');
+            return;
+        }
         doc = editor.document;
         selection = editor.selection;
         // If we want to pick a diagnostic for the start of the selection
@@ -213,33 +213,59 @@ async function copyContextAtCursorCommandHandler(positionArg?: { uri: string, li
 
     const context = await gatherContext(doc, selection, diag);
     if (!context) {
-        vscode.window.showErrorMessage('No function(s) found in the selection.');
+        vscode.window.showErrorMessage('No context found for the current cursor position.');
+        const extension = vscode.extensions.getExtension('raydoc.raydoc-ai-context');
+        const raydocVersion = extension?.packageJSON.version || 'unknown';
         userId && analyticsClient.capture({
             distinctId: userId,
-            event: `no-functions-found-${doc.languageId}`
+            event: `no-context-found-at-cursor`,
+            properties: {
+                languageId: doc.languageId,
+                raydocVersion: raydocVersion,
+                isCursor: isCursor(),
+                editorVersion: vscode.version,
+            }
         });
         return;
     }
 
-    // Convert your context to a string
-    const output = contextToString(context);
-    await vscode.env.clipboard.writeText(output);
-
-    vscode.window.showInformationMessage('Raydoc: combined context copied to clipboard!');
-    userId && analyticsClient.capture({
-        distinctId: userId,
-        event: `context-copied-${doc.languageId}`
-    });
+    const output = contextToString(context) + '---\n\n\n';
+    if (output) {
+        await vscode.env.clipboard.writeText(output);
+        vscode.window.showInformationMessage('Raydoc: context copied to clipboard!');
+        const extension = vscode.extensions.getExtension('raydoc.raydoc-ai-context');
+        const raydocVersion = extension?.packageJSON.version || 'unknown';
+        userId && analyticsClient.capture({
+            distinctId: userId,
+            event: `context-copied`,
+            properties: {
+                languageId: doc.languageId,
+                raydocVersion: raydocVersion,
+                isCursor: isCursor(),
+                editorVersion: vscode.version,
+            }
+        });
+    } else {
+        vscode.window.showWarningMessage('No context available to copy.');
+        const extension = vscode.extensions.getExtension('raydoc.raydoc-ai-context');
+        const raydocVersion = extension?.packageJSON.version || 'unknown';
+        userId && analyticsClient.capture({
+            distinctId: userId,
+            event: `no-context-available`,
+            properties: {
+                languageId: doc.languageId,
+                raydocVersion: raydocVersion,
+                isCursor: isCursor(),
+                editorVersion: vscode.version,
+            }
+        });
+    }
 }
 
 async function sendContextToLlmCommandHandler(
     positionArg?: { uri: string, line: number, character: number }
 ) {
     const editor = vscode.window.activeTextEditor;
-    if (!editor) {
-        vscode.window.showWarningMessage('No active text editor.');
-        return;
-    }
 
     // 1) Determine document & selection
     let doc: vscode.TextDocument;
@@ -253,6 +279,10 @@ async function sendContextToLlmCommandHandler(
         originalSelection = new vscode.Selection(pos, pos);
     } else {
         // Triggered manually: use the user’s current selection (could be multi-line or cursor)
+        if (!editor) {
+            vscode.window.showWarningMessage('No active text editor.');
+            return;
+        }
         doc = editor.document;
         originalSelection = editor.selection;
     }
@@ -381,7 +411,7 @@ async function getFunctionsInSelection(
 function isCursor(): boolean {
     // Check the application name
     const appName = vscode.env.appName;
-    
+
     // Cursor will have "Cursor" in its application name
     return appName.includes('Cursor');
 }
