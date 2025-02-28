@@ -255,7 +255,6 @@ function isFunctionAndTypeCpp(symbol: DocumentSymbol): { isFunction: boolean, is
 }
 
 function isFunctionAndTypeCsharp(symbol: DocumentSymbol): { isFunction: boolean, isType: boolean } {
-    console.log(symbol);
     const isFunction = symbol.kind === SymbolKind.Function || symbol.kind === SymbolKind.Method || symbol.kind === SymbolKind.Constructor;
     const isType = symbol.kind === SymbolKind.Class || symbol.kind === SymbolKind.Interface || symbol.kind === SymbolKind.Struct;
     return { isFunction, isType };
