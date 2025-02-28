@@ -201,7 +201,7 @@ async function copyContextAtCursorCommandHandler(positionArg?: { uri: string, li
     } else {
         // Use the user's current selection
         if (!editor) {
-            vscode.window.showWarningMessage('No active text editor.');
+            vscode.window.setStatusBarMessage('No active text editor.', 3000);
             return;
         }
         doc = editor.document;
@@ -245,9 +245,9 @@ async function sendContextToLlmCommandHandler(
         const pos = new vscode.Position(positionArg.line, positionArg.character);
         originalSelection = new vscode.Selection(pos, pos);
     } else {
-        // Triggered manually: use the user’s current selection (could be multi-line or cursor)
+        // Triggered manually: use the user's current selection (could be multi-line or cursor)
         if (!editor) {
-            vscode.window.showWarningMessage('No active text editor.');
+            vscode.window.setStatusBarMessage('No active text editor.', 3000);
             return;
         }
         doc = editor.document;
@@ -257,7 +257,7 @@ async function sendContextToLlmCommandHandler(
     // --- 2) Gather context for the selection (could be single or multiple functions) ---
     const context = await gatherContext(doc, originalSelection, undefined);
     if (!context) {
-        vscode.window.showErrorMessage('No function(s) found at the current selection/cursor.');
+        vscode.window.setStatusBarMessage('No function(s) found at the current selection/cursor.', 3000);
         // Optional analytics
         sendPHEvent(doc, 'no-functions-found');
         return;
@@ -282,10 +282,10 @@ async function sendContextToLlmCommandHandler(
     newEditor.selection = originalSelection;
 
     // 5) Copy minimal LLM context to clipboard
-    const output = contextToStringLlm(context);
+    const output = contextToStringLlm(context) + '---\n\n\n';
     await vscode.env.clipboard.writeText(output);
 
-    vscode.window.showInformationMessage('Raydoc: context copied to clipboard and sent to LLM!');
+    vscode.window.setStatusBarMessage('Raydoc: context copied to clipboard and sent to LLM!', 2000);
 
     // --- 6) Analytics (optional) ---
     sendPHEvent(doc, 'context-sent-to-llm');
