@@ -11,6 +11,7 @@ export function contextToString(context: RaydocContext): string {
     const includeFunctionDefn = config.get<boolean>('function-definition', true);
     const includeTypeDefns = config.get<boolean>('type-definitions', true);
     const includeReferencedFunctions = config.get<boolean>('referenced-functions', false);
+    const includeReferencingFunctions = true;
     const systemMessage = config.get<string>('system-message', '');
 
     let output = '';
@@ -102,6 +103,16 @@ export function contextToString(context: RaydocContext): string {
         for (const refFunc of context.referencedFunctions) {
             output += `--- Referenced Function: "${refFunc.functionName}" (${refFunc.filename}) ---\n`;
             output += refFunc.functionText;
+            output += '\n\n';
+        }
+    }
+
+    // ========== Referencing Functions ==========
+    if (includeReferencedFunctions && context.referencingDefns && context.referencingDefns.length > 0) {
+        output += "\n=== Referencing Functions ===\n";
+        for (const referencingFunc of context.referencingDefns) {
+            output += `--- Referencing Function: "${referencingFunc.functionName}" (${referencingFunc.filename}) ---\n`;
+            output += referencingFunc.functionText;
             output += '\n\n';
         }
     }

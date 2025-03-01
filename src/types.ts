@@ -12,6 +12,7 @@ export type RaydocContext = {
     packages?: Record<string, string>;
     functionDefns?: FunctionDefinition[];
     referencedFunctions?: FunctionDefinition[];
+    referencingDefns?: FunctionDefinition[];
     typeDefns?: FunctionDefinition[];
     fileTree?: Node;
 }

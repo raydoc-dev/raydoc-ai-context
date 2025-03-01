@@ -7,12 +7,13 @@ export async function getReferencesForFunction(
     document: vscode.TextDocument,
     functionDefinition: FunctionDefinition,
     returnTypes = true,
+    returnReferencing = false,
 ): Promise<FunctionDefinition[]> {
     const functionTypeDefinitions = new Map<String, FunctionDefinition>();
 
     // Get the types for each line in the function
     for (let i = functionDefinition.startLine; i <= functionDefinition.endLine; i++) {
-        const lineTypeDefinitions = await getTypeDefinitionsForLine(document, new vscode.Position(i, 0), functionDefinition, returnTypes);
+        const lineTypeDefinitions = await getTypeDefinitionsForLine(document, new vscode.Position(i, 0), functionDefinition, returnTypes, returnReferencing);
         for (const typeDef of lineTypeDefinitions) {
             if (typeDef.functionName === functionDefinition.functionName) {
                 continue;
@@ -33,6 +34,7 @@ async function getTypeDefinitionsForLine(
     position: vscode.Position,
     functionDefinition: FunctionDefinition,
     returnTypes: boolean,
+    returnReferencing: boolean,
 ): Promise<FunctionDefinition[]> {
     const typeDefinitions = new Map<string, FunctionDefinition>();
     const line = document.lineAt(position.line).text;
@@ -57,7 +59,7 @@ async function getTypeDefinitionsForLine(
     }
 
     for (const pos of positions) {
-        const typeInfo = await getTypeDefinitionsForPosition(document, pos, functionDefinition, returnTypes);
+        const typeInfo = await getTypeDefinitionsForPosition(document, pos, functionDefinition, returnTypes, returnReferencing);
         if (typeInfo) {
             for (const typeDef of typeInfo) {
                 const key = `${typeDef.functionName}-${typeDef.filename}`;
@@ -75,6 +77,7 @@ async function getTypeDefinitionsForPosition(
     position: vscode.Position,
     functionDefinition: FunctionDefinition,
     returnTypes: boolean,
+    returnReferencing: boolean,
 ): Promise<FunctionDefinition[]> {
     const typesDefinitions: FunctionDefinition[] = [];
 
@@ -99,8 +102,8 @@ async function getTypeDefinitionsForPosition(
     };
 
     // Convert mixed location array to Location[] for compatibility
-    let typeLocations = await getAllDefinitions(document, position);
-    let locationArray = typeLocations.map(loc => {
+    let typeLocations = await getAllDefinitions(document, position, returnReferencing);
+    let definitionLocationArray = typeLocations.definitionResults.map(loc => {
         if ('targetUri' in loc) {
             // This is a LocationLink
             return new vscode.Location(loc.targetUri, loc.targetRange);
@@ -109,16 +112,25 @@ async function getTypeDefinitionsForPosition(
         return loc;
     });
 
-    typesDefinitions.push(...await getTypeDefinitionFromLocations(locationArray, returnTypes));
-    
+    let referencingLocationArray = typeLocations.referencingResults.map(loc => {
+        if ('targetUri' in loc) {
+            // This is a LocationLink
+            return new vscode.Location(loc.targetUri, loc.targetRange);
+        }
+        // This is already a Location
+        return loc;
+    });
 
+    typesDefinitions.push(...await getTypeDefinitionFromLocations(definitionLocationArray, returnTypes, false));
+    typesDefinitions.push(...await getTypeDefinitionFromLocations(referencingLocationArray, returnTypes, true));
     return typesDefinitions;
 }
 
 async function getAllDefinitions(
     document: vscode.TextDocument,
-    position: vscode.Position
-): Promise<(vscode.Location | vscode.LocationLink)[]> {
+    position: vscode.Position,
+    returnReferencing: boolean,
+): Promise<{definitionResults: (vscode.Location | vscode.LocationLink)[], referencingResults: (vscode.Location | vscode.LocationLink)[]}> {
     // Use the executeDefinitionProvider command to get results from all providers
     const definitionResults = await vscode.commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>(
         'vscode.executeDefinitionProvider', 
@@ -139,16 +151,27 @@ async function getAllDefinitions(
         document.uri, 
         position
     ) || [];
+
+    let referencingResults: (vscode.Location | vscode.LocationLink)[] = [];
+
+    if (returnReferencing) {
+        referencingResults = await vscode.commands.executeCommand<vscode.Location[]>(
+            'vscode.executeReferenceProvider',
+            document.uri,
+            position,
+            { includeDeclaration: true }  // This parameter controls whether to include declarations
+        ) || [];
+    }
     
     // Combine all results
-    const allResults = [
+    const allDefinitionResults = [
         ...definitionResults,
         ...declarationResults,
-        ...typeDefinitionResults
+        ...typeDefinitionResults,
     ];
     
     // Remove duplicates
-    return removeDuplicateLocations(allResults);
+    return {definitionResults: removeDuplicateLocations(allDefinitionResults), referencingResults: removeDuplicateLocations(referencingResults)};
 }
 
 // Helper function to remove duplicate locations
@@ -182,7 +205,8 @@ function removeDuplicateLocations(
 
 async function getTypeDefinitionFromLocations(
     locations: vscode.Location[],
-    returnTypes: boolean
+    returnTypes: boolean,
+    isReference: boolean,
 ): Promise<FunctionDefinition[]> {
     const typeDefinitions: FunctionDefinition[] = [];
     for (const location of locations) {
@@ -192,7 +216,7 @@ async function getTypeDefinitionFromLocations(
 
         const doc = await vscode.workspace.openTextDocument(location.uri);
 
-        const functionDefinition = await getFunctionDefinition(doc, location.range.start, returnTypes);
+        const functionDefinition = await getFunctionDefinition(doc, location.range.start, returnTypes, isReference);
 
         if (!functionDefinition) {
             continue;

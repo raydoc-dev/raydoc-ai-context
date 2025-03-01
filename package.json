@@ -185,6 +185,8 @@
         "url": "https://github.com/raydoc-dev/raydoc-ai-context"
     },
     "dependencies": {
+        "@google/generative-ai": "^0.22.0",
+        "dotenv": "^16.4.7",
         "posthog-node": "^4.7.0",
         "uuid": "^11.1.0"
     }

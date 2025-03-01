@@ -26,6 +26,7 @@ export async function gatherContext(
     // 3) Deduplicate references across all main functions
     const typeDefnMap = new Map<string, FunctionDefinition>();
     const refFnMap = new Map<string, FunctionDefinition>();
+    const implFnMap = new Map<string, FunctionDefinition>();
     const usedFiles = new Set<string>();
     usedFiles.add(filepath);
 
@@ -46,6 +47,12 @@ export async function gatherContext(
         for (const r of refFns) {
             refFnMap.set(`${r.functionName}:${r.filename}`, r);
             usedFiles.add(r.filename);
+        }
+
+        const implFns = await getReferencesForFunction(doc, fn, false, true);
+        for (const i of implFns) {
+            implFnMap.set(`${i.functionName}:${i.filename}`, i);
+            usedFiles.add(i.filename);
         }
     }
 
@@ -79,6 +86,7 @@ export async function gatherContext(
         functionDefns,
         typeDefns: Array.from(typeDefnMap.values()),
         referencedFunctions: Array.from(refFnMap.values()),
+        referencingDefns: Array.from(implFnMap.values()),
         immediateContextLines,
         fileTree
     };
