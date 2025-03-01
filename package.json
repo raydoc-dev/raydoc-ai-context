@@ -157,6 +157,11 @@
                     "default": "",
                     "description": "A system message or prompt to append to the end of every context output",
                     "editPresentation": "multilineText"
+                },
+                "raydoc-context.geminiApiKey": {
+                    "type": "string",
+                    "default": "",
+                    "description": "API Key for Gemini AI"
                 }
             }
         }

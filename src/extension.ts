@@ -5,11 +5,18 @@ import { gatherContext } from './context';
 import { getFunctionDefinition } from './functions';
 import { FunctionDefinition } from './types';
 import { v4 as uuidv4 } from 'uuid';
+import { Gemini } from './agent/gemini';
 
 let analyticsClient: PostHog;
 let userId: string | undefined;
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
+    const config = vscode.workspace.getConfiguration('raydoc-context');
+    const apiKey = config.get('geminiApiKey') as string;
+    const gemini = new Gemini(apiKey); // Pass the key directly
+    const geminiResponse = await gemini.generateText('Hello, world!');
+    console.log(geminiResponse);
+
     analyticsClient = new PostHog(
         'phc_Rv9pNJA7chv1QR27K0jg2s1Bwah2PDsZroMEI1Usic7',
         { host: 'https://us.i.posthog.com' }
