@@ -81,6 +81,7 @@ export function activate(context: vscode.ExtensionContext) {
         copyFromMenu,
         sendContextToLlmCommand,
         sendFromMenu,
+        codeActionProvider,
     );
 }
 
