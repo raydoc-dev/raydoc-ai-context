@@ -5,17 +5,17 @@ import { gatherContext } from './context';
 import { getFunctionDefinition } from './functions';
 import { FunctionDefinition } from './types';
 import { v4 as uuidv4 } from 'uuid';
-import { Gemini } from './agent/gemini';
+import { Agent } from './agent/agent';
 
 let analyticsClient: PostHog;
 let userId: string | undefined;
+// Store the Agent instance at module level so it can be reused
+let agentInstance: Agent;
 
 export async function activate(context: vscode.ExtensionContext) {
-    const config = vscode.workspace.getConfiguration('raydoc-context');
-    const apiKey = config.get('geminiApiKey') as string;
-    const gemini = new Gemini(apiKey); // Pass the key directly
-    const geminiResponse = await gemini.generateText('Hello, world!');
-    console.log(geminiResponse);
+    // Create a single instance of the Agent
+    agentInstance = new Agent();
+    agentInstance.run();
 
     analyticsClient = new PostHog(
         'phc_Rv9pNJA7chv1QR27K0jg2s1Bwah2PDsZroMEI1Usic7',
@@ -73,6 +73,26 @@ export async function activate(context: vscode.ExtensionContext) {
         'raydoc-context.sendContextToLlmWithoutPosition',
         () => sendContextToLlmCommandHandler()
     );
+    
+    // Register the submit answers command - using the same Agent instance
+    const submitAnswersCommand = vscode.commands.registerCommand(
+        'raydoc-context.submitAnswersForRaydocAgent',
+        () => {
+            // Use the existing agent instance instead of creating a new one
+            agentInstance.run2();
+            vscode.window.showInformationMessage('Answers submitted to Raydoc Agent');
+        }
+    );
+
+    // Register the accept requirements command - using the same Agent instance
+    const acceptRequirementsCommand = vscode.commands.registerCommand(
+        'raydoc-context.acceptRequirementsForRaydocAgent',
+        () => {
+            // Use the existing agent instance to create a design document
+            agentInstance.run3();
+            vscode.window.showInformationMessage('Requirements accepted, generating design document');
+        }
+    );
 
     // Register the code action provider
     const codeActionProvider = vscode.languages.registerCodeActionsProvider(
@@ -94,6 +114,8 @@ export async function activate(context: vscode.ExtensionContext) {
         copyFromMenu,
         sendContextToLlmCommand,
         sendFromMenu,
+        submitAnswersCommand,
+        acceptRequirementsCommand,
         codeActionProvider,
         hoverProvider
     );

@@ -38,6 +38,14 @@
             {
                 "command": "raydoc-context.sendContextToLlmWithoutPosition",
                 "title": "Send Context to Copilot Chat or Cursor Composer"
+            },
+            {
+                "command": "raydoc-context.submitAnswersForRaydocAgent",
+                "title": "Submit Answers for Raydoc Agent"
+            },
+            {
+                "command": "raydoc-context.acceptRequirementsForRaydocAgent",
+                "title": "Accept Requirements for Raydoc Agent"
             }
         ],
         "keybindings": [
