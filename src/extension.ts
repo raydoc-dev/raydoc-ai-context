@@ -76,19 +76,12 @@ export function activate(context: vscode.ExtensionContext) {
         }
     );
 
-    // Register the hover provider
-    const hoverProvider = vscode.languages.registerHoverProvider(
-        { scheme: 'file', pattern: '**/*' }, // Match all files
-        new RaydocHoverProvider()
-    );
-
     context.subscriptions.push(
         copyContextAtCursorCommand,
         copyFromMenu,
         sendContextToLlmCommand,
         sendFromMenu,
         codeActionProvider,
-        hoverProvider
     );
 }
 
@@ -134,41 +127,6 @@ class RaydocCodeActionProvider implements vscode.CodeActionProvider {
         };
 
         return [copyAction, sendAction];
-    }
-}
-
-class RaydocHoverProvider implements vscode.HoverProvider {
-    async provideHover(
-        document: vscode.TextDocument,
-        position: vscode.Position,
-        token: vscode.CancellationToken
-    ): Promise<vscode.Hover> {
-        const diagnostics = vscode.languages.getDiagnostics(document.uri)
-            .filter(diag => diag.range.contains(position));
-
-        const markdownString = new vscode.MarkdownString();
-
-        if (diagnostics.length) {
-            markdownString.appendMarkdown(`**Error:** ${diagnostics[0].message}\n\n`);
-        }
-
-        // Serialize position as arguments to pass it to the commands
-        const args = encodeURIComponent(JSON.stringify({
-            uri: document.uri.toString(),
-            line: position.line,
-            character: position.character
-        }));
-
-        markdownString.appendMarkdown(
-            `[Copy Context for AI to Clipboard](command:raydoc-context.copyContextAtCursor?${args})\n\n`
-        );
-        markdownString.appendMarkdown(
-            `[Send Context to Cursor Composer/GitHub Copilot](command:raydoc-context.sendContextToLlm?${args})\n\n`
-        );
-
-        markdownString.isTrusted = true;
-
-        return new vscode.Hover(markdownString);
     }
 }
 
